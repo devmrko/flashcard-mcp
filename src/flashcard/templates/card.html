@@ -1,0 +1,21 @@
+{% extends "layout.html" %}
+{% block title %}카드 · {{ label }}{% endblock %}
+{% block topbar %}{% call mf.topbar("카드", back_url="/d/" ~ card.deck) %}{% endcall %}{% endblock %}
+{% block content %}
+<div class="mf-stack">
+  {% if saved %}{% call mf.notice("info") %}저장했습니다.{% endcall %}{% endif %}
+  {% if error %}{% call mf.notice("bad") %}{{ error }}{% endcall %}{% endif %}
+  <p class="mf-hint">{{ label }} · 반복 {{ card.reps }}회 · 틀림 {{ card.lapses }}회 · 다음 복습 {{ card.due_at.strftime("%Y-%m-%d %H:%M") }} UTC · 저장 {{ card.created_by or "기록 없음" }}{% if card.updated_by and card.updated_by != card.created_by %} · 수정 {{ card.updated_by }}{% endif %}</p>
+  <form method="post" action="/c/{{ card.id }}" class="mf-stack">
+    {{ mf.field("deck", "덱", value=card.deck, required=True) }}
+    {{ mf.field("front", "앞면", value=card.front, required=True) }}
+    <div class="mf-field"><label class="mf-label" for="f-back">뒷면</label><textarea class="mf-textarea" id="f-back" name="back" rows="4" required>{{ card.back }}</textarea></div>
+    <div class="mf-field"><label class="mf-label" for="f-example">예문</label><textarea class="mf-textarea" id="f-example" name="example" rows="2">{{ card.example or "" }}</textarea></div>
+    <div class="mf-field"><label class="mf-label" for="f-note">메모</label><textarea class="mf-textarea" id="f-note" name="note" rows="2">{{ card.note or "" }}</textarea></div>
+    {{ mf.button("저장", "primary", type="submit", block=True) }}
+  </form>
+  {% call mf.details("삭제") %}
+  <form method="post" action="/c/{{ card.id }}/delete">{{ mf.button("이 카드 삭제", "danger", type="submit", block=True) }}</form>
+  {% endcall %}
+</div>
+{% endblock %}

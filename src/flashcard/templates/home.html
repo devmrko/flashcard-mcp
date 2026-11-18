@@ -1,0 +1,14 @@
+{% extends "layout.html" %}
+{% block title %}플래시카드{% endblock %}
+{% block topbar %}{% call mf.topbar("플래시카드") %}{% endcall %}{% endblock %}
+{% block content %}
+<div class="mf-stack">
+  <ul class="mf-list">
+  {% for d in decks %}
+    {% set badge = mf.badge(d.due ~ "장 복습", "warn") if d.due else mf.badge("완료", "ok") if d.total else "" %}
+    <li>{{ mf.row(d.label, "카드 " ~ d.total ~ "장", href="/d/" ~ d.deck, trailing=badge) }}</li>
+  {% endfor %}
+  </ul>
+  <p class="mf-hint">새 덱은 아무 덱 화면의 "카드 추가"에서 덱 이름을 새로 적으면 만들어집니다.</p>
+</div>
+{% endblock %}

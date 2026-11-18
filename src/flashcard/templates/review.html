@@ -1,0 +1,41 @@
+{% extends "layout.html" %}
+{% block title %}복습 · {{ label }}{% endblock %}
+{% block main_class %}{% if card %} mf-main--with-bar{% endif %}{% endblock %}
+{% block topbar %}{% call mf.topbar(label ~ " 복습", back_url="/d/" ~ deck) %}<span class="mf-badge mf-badge--info">남은 {{ due }}</span>{% endcall %}{% endblock %}
+{% block content %}
+{% if card %}
+<div class="mf-stack">
+  <section class="mf-card fc-face">
+    <p class="fc-front">{{ card.front }}</p>
+  </section>
+  <details class="mf-details fc-answer">
+    <summary>답 보기</summary>
+    <div class="mf-details__body mf-stack">
+      <p class="fc-back">{{ card.back }}</p>
+      {% if card.example %}<p class="fc-example">{{ card.example }}</p>{% endif %}
+      {% if card.note %}<p class="mf-hint">메모: {{ card.note }}</p>{% endif %}
+      <a class="mf-hint" href="/c/{{ card.id }}">카드 수정</a>
+    </div>
+  </details>
+</div>
+{% else %}
+<div class="mf-stack">
+  {{ mf.empty("지금 복습할 카드가 없습니다.") }}
+  {{ mf.button("덱으로", "secondary", href="/d/" ~ deck, block=True) }}
+</div>
+{% endif %}
+{% endblock %}
+{% block bottom %}
+{% if card %}
+{% call mf.actionbar() %}
+  {% for c in choices %}
+  <form method="post" action="/c/{{ card.id }}/review">
+    <input type="hidden" name="rating" value="{{ c.rating }}">
+    <button class="mf-btn mf-btn--{{ {'again': 'danger', 'hard': 'secondary', 'good': 'primary'}[c.rating] }} fc-rate" type="submit">
+      <span>{{ c.label }}</span><small>{{ c.after }}</small>
+    </button>
+  </form>
+  {% endfor %}
+{% endcall %}
+{% endif %}
+{% endblock %}
