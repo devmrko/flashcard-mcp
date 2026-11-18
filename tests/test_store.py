@@ -39,7 +39,15 @@ def test_decks_due_and_review(store):
     card, _ = store.add("psychology", "Dopamine", "동기 신경전달물질")
     decks = {d["deck"]: d for d in store.decks()}
     assert list(decks)[:3] == ["english", "it", "psychology"]
-    assert decks["psychology"] == {"deck": "psychology", "label": "Psychology", "total": 1, "due": 1}
+    assert decks["psychology"] == {
+        "deck": "psychology",
+        "label": "Psychology",
+        "total": 1,
+        "new": 1,
+        "learn": 0,
+        "review": 0,
+        "due": 1,
+    }
     nxt, due = store.next_due("psychology")
     assert nxt.id == card.id and due == 1
     reviewed = store.review(card.id, "good")
@@ -47,3 +55,17 @@ def test_decks_due_and_review(store):
     assert store.next_due("psychology") == (None, 0)
     with pytest.raises(CardError):
         store.review(card.id, "perfect")
+
+
+def test_review_history(store):
+    card, _ = store.add("english", "I'll hang up now.", "이제 전화 끊을게요.")
+    store.review(card.id, "again", by="web:me")
+    store.review(card.id, "good", by="web:me")
+    hist = store.history(card.id)
+    assert [h["rating"] for h in hist] == ["good", "again"]
+    assert hist[0]["reviewed_by"] == "web:me" and hist[0]["interval_after"] == 1.0
+    with pytest.raises(CardError):
+        store.review(card.id, "bad")
+    assert len(store.history(card.id)) == 2  # invalid rating writes nothing
+    store.remove(card.id)
+    assert store.history(card.id) == []

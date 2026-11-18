@@ -1,9 +1,12 @@
 import base64
+from datetime import datetime
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import update
 
 from flashcard.config import Settings
+from flashcard.db import cards
 from flashcard.web import create_app
 
 from .conftest import TOKEN
@@ -35,13 +38,19 @@ def test_add_review_flow(client):
         follow_redirects=False,
     )
     assert r.status_code == 303 and r.headers["location"].startswith("/c/")
-    page = client.get("/d/english/review", headers=AUTH)
-    assert "on my way to work" in page.text and "앎" in page.text
     card_id = r.headers["location"].split("/")[2].split("?")[0]
+    page = client.get("/d/english/review", headers=AUTH).text
+    assert "출근길에" in page and "답 보기" in page and "on my way to work" not in page
+    page = client.get(f"/d/english/review?show={card_id}", headers=AUTH).text
+    assert "on my way to work" in page
+    assert all(label in page for label in ("다시", "어려움", "알맞음", "쉬움"))
     r = client.post(f"/c/{card_id}/review", headers=AUTH, data={"rating": "good"}, follow_redirects=False)
     assert r.status_code == 303
-    assert "복습할 카드가 없습니다" in client.get("/d/english/review", headers=AUTH).text
-    assert "on my way to work" in client.get("/d/english?q=WAY", headers=AUTH).text
+    assert "학습할 카드가 없습니다" in client.get("/d/english/review", headers=AUTH).text
+    assert "on my way to work" in client.get("/browse?q=WAY", headers=AUTH).text
+    card_page = client.get(f"/c/{card_id}", headers=AUTH).text
+    assert "알맞음" in card_page  # review history row
+    assert "1" in client.get("/stats", headers=AUTH).text
 
 
 def test_new_deck_and_errors(client):
@@ -165,3 +174,43 @@ def test_token_config_validation():
         Settings(_env_file=None, mcp_tokens=f"claude={'a' * 40},codex={'a' * 40}")  # duplicate token
     with pytest.raises(ValueError):
         Settings(_env_file=None, mcp_tokens=f"Claude!={'a' * 40}")  # bad label
+
+
+def test_english_review_is_korean_first(client):
+    r = client.post(
+        "/d/english/add",
+        headers=AUTH,
+        data={"front": "I'll hang up now.", "back": "이제 전화 끊을게요."},
+        follow_redirects=False,
+    )
+    cid = r.headers["location"].split("/")[2].split("?")[0]
+    page = client.get("/d/english/review", headers=AUTH).text
+    assert "영어로 말해 보세요" in page and "이제 전화 끊을게요." in page
+    assert "I&#39;ll hang up now." not in page
+    page = client.get(f"/d/english/review?show={cid}", headers=AUTH).text
+    assert page.index("이제 전화 끊을게요.") < page.index("I&#39;ll hang up now.")
+    r = client.post(
+        "/d/it/add", headers=AUTH, data={"front": "IoC", "back": "제어의 역전"}, follow_redirects=False
+    )
+    iid = r.headers["location"].split("/")[2].split("?")[0]
+    it_page = client.get(f"/d/it/review?show={iid}", headers=AUTH).text
+    assert it_page.index("IoC") < it_page.index("제어의 역전")
+    assert "영어로 말해 보세요" not in it_page
+
+
+def test_tabs_and_queue_order(client, store):
+    for path, tab in (("/", "덱"), ("/browse", "찾아보기"), ("/stats", "통계")):
+        page = client.get(path, headers=AUTH).text
+        assert page.count('aria-current="page"') == 1 and "mf-tabbar" in page and tab in page
+    assert "mf-tabbar" not in client.get("/d/english", headers=AUTH).text  # drill-down has no tab bar
+    old = store.add("it", "old", "x")[0]
+    new = store.add("it", "new", "y")[0]
+    store.review(old.id, "good")
+    store.review(new.id, "again")
+    store.add("it", "fresh", "z")
+    assert store.next_due("it")[0].front == "fresh"  # relearning card still waiting 10 min
+    with store.engine.begin() as conn:
+        conn.execute(update(cards).where(cards.c.id == new.id).values(due_at=datetime(2000, 1, 1)))
+    assert store.next_due("it")[0].id == new.id  # relearning comes before new cards
+    counts = store.deck_counts("it")
+    assert (counts["new"], counts["learn"], counts["review"]) == (1, 1, 0)

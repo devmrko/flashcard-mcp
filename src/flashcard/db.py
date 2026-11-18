@@ -45,6 +45,23 @@ cards = Table(
 )
 
 
+# One row per review answer. Kept separately from fc_card (which only holds the current schedule)
+# so practice history, streaks and accuracy can be computed later.
+reviews = Table(
+    "fc_review",
+    metadata,
+    Column("id", Integer, Identity(), primary_key=True),
+    Column("card_id", Integer, nullable=False, index=True),
+    Column("deck", String(40), nullable=False),
+    Column("rating", String(10), nullable=False),
+    Column("reviewed_at", DateTime, nullable=False, index=True),
+    Column("interval_before", Float, nullable=False),
+    Column("interval_after", Float, nullable=False),
+    Column("ease_after", Float, nullable=False),
+    Column("reviewed_by", String(60)),
+)
+
+
 def make_engine(settings: Settings) -> Engine:
     if settings.database_url:
         args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}

@@ -9,10 +9,12 @@ from sqlalchemy import Engine, and_, case, delete, func, insert, or_, select, up
 from sqlalchemy.exc import IntegrityError
 
 from flashcard import srs
-from flashcard.db import cards
+from flashcard.db import cards, reviews
 
 DECK_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 DEFAULT_DECKS = {"english": "English", "it": "IT", "psychology": "Psychology"}
+# Decks reviewed back-first: show the Korean meaning, recall the English expression (production practice).
+REVERSED_DECKS = {"english"}
 LIMITS = {"front": 500, "back": 2000, "example": 2000, "note": 2000}
 
 
@@ -188,7 +190,19 @@ class CardStore:
 
     def remove(self, card_id: int) -> bool:
         with self.engine.begin() as conn:
+            conn.execute(delete(reviews).where(reviews.c.card_id == card_id))
             return conn.execute(delete(cards).where(cards.c.id == card_id)).rowcount > 0
+
+    def history(self, card_id: int, limit: int = 50) -> list[dict[str, Any]]:
+        """Most recent review answers for one card."""
+        stmt = (
+            select(reviews.c.rating, reviews.c.reviewed_at, reviews.c.interval_after, reviews.c.reviewed_by)
+            .where(reviews.c.card_id == card_id)
+            .order_by(reviews.c.reviewed_at.desc(), reviews.c.id.desc())
+            .limit(limit)
+        )
+        with self.engine.connect() as conn:
+            return [dict(r._mapping) for r in conn.execute(stmt)]
 
     def search(self, query: str = "", deck: str | None = None, limit: int = 20) -> list[Card]:
         stmt = select(cards)
@@ -209,40 +223,90 @@ class CardStore:
             return [self._row(r) for r in conn.execute(stmt)]
 
     def decks(self) -> list[dict[str, Any]]:
-        """All decks with total and due counts; default decks are listed even when empty."""
+        """All decks with total count and due counts split Anki-style into new / learn / review.
+        Default decks are listed even when empty."""
         now = now_utc()
+        is_due = cards.c.due_at <= now
+        is_review = cards.c.interval_days > 0
+        is_learn = and_(cards.c.interval_days <= 0, cards.c.lapses > 0)
+        is_new = and_(cards.c.interval_days <= 0, cards.c.lapses == 0)
+
+        def due_sum(cond: Any, label: str) -> Any:
+            return func.sum(case((and_(is_due, cond), 1), else_=0)).label(label)
+
         stmt = select(
             cards.c.deck,
             func.count().label("total"),
-            func.sum(case((cards.c.due_at <= now, 1), else_=0)).label("due"),
+            due_sum(is_new, "new"),
+            due_sum(is_learn, "learn"),
+            due_sum(is_review, "review"),
         ).group_by(cards.c.deck)
         with self.engine.connect() as conn:
-            counts = {r.deck: (int(r.total), int(r.due or 0)) for r in conn.execute(stmt)}
-        names = list(DEFAULT_DECKS) + sorted(d for d in counts if d not in DEFAULT_DECKS)
-        return [
-            {
-                "deck": d,
-                "label": deck_label(d),
-                "total": counts.get(d, (0, 0))[0],
-                "due": counts.get(d, (0, 0))[1],
-            }
-            for d in names
-        ]
+            rows = {r.deck: r for r in conn.execute(stmt)}
+        names = list(DEFAULT_DECKS) + sorted(d for d in rows if d not in DEFAULT_DECKS)
+        out = []
+        for d in names:
+            r = rows.get(d)
+            counts = {k: int(getattr(r, k) or 0) if r else 0 for k in ("total", "new", "learn", "review")}
+            counts["due"] = counts["new"] + counts["learn"] + counts["review"]
+            out.append({"deck": d, "label": deck_label(d), **counts})
+        return out
+
+    def deck_counts(self, deck: str) -> dict[str, Any]:
+        deck = normalize_deck(deck)
+        for d in self.decks():
+            if d["deck"] == deck:
+                return d
+        return {
+            "deck": deck,
+            "label": deck_label(deck),
+            "total": 0,
+            "new": 0,
+            "learn": 0,
+            "review": 0,
+            "due": 0,
+        }
+
+    def reviews_since(self, since: datetime) -> list[dict[str, Any]]:
+        """Review log rows (deck, rating, reviewed_at) since a UTC time, oldest first."""
+        stmt = (
+            select(reviews.c.deck, reviews.c.rating, reviews.c.reviewed_at)
+            .where(reviews.c.reviewed_at >= since)
+            .order_by(reviews.c.reviewed_at)
+        )
+        with self.engine.connect() as conn:
+            return [dict(r._mapping) for r in conn.execute(stmt)]
+
+    def most_lapsed(self, limit: int = 10) -> list[Card]:
+        stmt = (
+            select(cards)
+            .where(cards.c.lapses > 0)
+            .order_by(cards.c.lapses.desc(), cards.c.updated_at.desc())
+            .limit(limit)
+        )
+        with self.engine.connect() as conn:
+            return [self._row(r) for r in conn.execute(stmt)]
 
     def next_due(self, deck: str) -> tuple[Card | None, int]:
-        """Oldest due card in the deck and the number of due cards."""
+        """Next due card and the number of due cards. Order like Anki: relearning cards first,
+        then reviews, then new cards; oldest due first within each group."""
         now = now_utc()
         cond = and_(cards.c.deck == normalize_deck(deck), cards.c.due_at <= now)
+        group = case(
+            (and_(cards.c.interval_days <= 0, cards.c.lapses > 0), 0),
+            (cards.c.interval_days > 0, 1),
+            else_=2,
+        )
         with self.engine.connect() as conn:
             count = conn.execute(select(func.count()).where(cond)).scalar_one()
             row = conn.execute(
-                select(cards).where(cond).order_by(cards.c.due_at, cards.c.id).limit(1)
+                select(cards).where(cond).order_by(group, cards.c.due_at, cards.c.id).limit(1)
             ).first()
         return (self._row(row) if row else None), int(count)
 
-    def review(self, card_id: int, rating: srs.Rating) -> Card:
+    def review(self, card_id: int, rating: srs.Rating, by: str | None = None) -> Card:
         if rating not in srs.RATINGS:
-            raise CardError("rating must be again, hard or good")
+            raise CardError("rating must be again, hard, good or easy")
         card = self.get(card_id)
         if card is None:
             raise CardError(f"card {card_id} not found")
@@ -261,6 +325,18 @@ class CardStore:
                     lapses=state.lapses,
                     due_at=due,
                     updated_at=ts,
+                )
+            )
+            conn.execute(
+                insert(reviews).values(
+                    card_id=card_id,
+                    deck=card.deck,
+                    rating=rating,
+                    reviewed_at=ts,
+                    interval_before=card.interval_days,
+                    interval_after=state.interval_days,
+                    ease_after=state.ease,
+                    reviewed_by=by,
                 )
             )
         updated = self.get(card_id)

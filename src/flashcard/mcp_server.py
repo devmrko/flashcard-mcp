@@ -18,8 +18,12 @@ Decks: "english" (expressions, corrections), "it" (IT terms, papers, patterns), 
 (psychology, habits, health ideas). Other lowercase deck names (e.g. "aws-saa") are allowed.
 
 Card format:
-- english: front = the natural English expression or full sentence; back = Korean meaning plus a short
-  nuance; example = one natural example sentence; note = what the user said before the correction.
+- english: the user reviews this deck Korean-first and must recall the English, so:
+  front = the natural English expression or full sentence;
+  back = what the user wanted to say, as ONE natural Korean sentence with no English words in it
+  (it is the prompt shown first, so it must not give away the answer);
+  example = another natural English example sentence;
+  note = nuance/usage and what the user said before the correction (e.g. "전에 말한 표현: ...").
 - it / psychology: front = the term or question; back = a short explanation (2-4 sentences, Korean or
   English as the user prefers); example = a concrete example or use case.
 

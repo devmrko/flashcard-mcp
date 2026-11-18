@@ -5,6 +5,7 @@
 - 웹: `https://flashcard.cloud-handson.com/` (Basic Auth, `.env`의 `FLASHCARD_WEB_AUTH`)
 - MCP: `https://flashcard.cloud-handson.com/m/<토큰>/mcp` (Streamable HTTP, URL이 비밀). 토큰은 `.env`의 `FLASHCARD_MCP_TOKENS`에 클라이언트별로 있고(`claude=…,codex=…,chatgpt=…`), 그 라벨이 카드의 `created_by`/`updated_by`에 `mcp:claude`처럼 기록된다. 웹 저장은 `web:<사용자>`.
 - 도구: `list_decks`, `search_cards`, `save_card`, `update_card`
+- 화면: 하단 탭 덱 / 찾아보기 / 통계. 덱 → 학습(답 보기 → 다시·어려움·알맞음·쉬움), 카드 상세에 복습 기록.
 
 ## 개발
 

@@ -9,9 +9,13 @@
 ## 범위 (v1)
 
 - MCP 도구 4개: `list_decks`, `search_cards`, `save_card`, `update_card`.
-- 웹: 덱 목록 → 덱(복습 시작·카드 목록·검색·직접 추가) → 카드 상세(수정·삭제). 복습 화면은 앞면 → "답 보기" → 모름/애매/앎.
+- 웹(2026-11-19 개편, Anki 흐름을 따르되 mobile-foundation 원칙으로 구성):
+  - 하단 탭 3개: **덱**(덱별 새·학습·복습 수) / **찾아보기**(검색·덱 칩·상태 배지) / **통계**(오늘·연속일·30일 막대·덱별 정답률·자주 틀리는 카드).
+  - 드릴다운(탭바 없음, 뒤로 버튼): 덱 개요(숫자 3칸 + 하단 "학습 시작") → 학습(질문 → 하단 "답 보기" → 하단 4버튼 다시/어려움/알맞음/쉬움, 각 버튼에 다음 간격 표시) / 카드 상세(내용·일정·복습 기록·수정·삭제) / 카드 추가.
+  - 색은 상태 구분에만: 새=info, 다시 학습=bad, 복습=ok (항상 글자와 함께). 답 버튼은 다시=bad, 어려움=warn, 알맞음=ok, 쉬움=info.
+  - 학습 순서는 Anki처럼 다시 학습 → 복습 → 새 카드. 하루 새 카드 제한·되돌리기는 없음.
 - 덱은 자유 문자열(소문자 slug). 기본 표시: `english`, `it`, `psychology`.
-- 제외: 임베딩 유사도 검색, 통계 화면, 다중 사용자, OAuth.
+- 제외: 임베딩 유사도 검색, 다중 사용자, OAuth.
 
 ## 구조
 
@@ -47,13 +51,18 @@
 | ease, interval_days, reps, lapses, due_at | 간격 반복 상태 |
 | created_at, updated_at | UTC (naive, 앱에서 계산) |
 
+`FC_REVIEW`: 복습 답 한 번에 한 행(card_id, deck, rating, reviewed_at, interval_before/after, ease_after, reviewed_by). `fc_card`는 현재 일정만 갖고 있어 학습 기록·연속일·정답률은 이 테이블로 계산한다. 카드 갱신과 같은 트랜잭션에서 쓰며, 카드를 지우면 기록도 지운다(2026-11-19 추가).
+
 시간은 모두 앱이 계산한 UTC 값을 바인딩한다. DB의 `SYSTIMESTAMP`는 쓰지 않는다(세션 시간대 영향 제거).
 
 ## 간격 반복 (SM-2 단순화)
 
-- 모름: reps=0, lapses+1, ease−0.2, 10분 뒤 다시.
-- 애매: ease−0.15, interval = max(1, interval×1.2)일.
-- 앎: reps 0→1일, 1→3일, 이후 interval×ease일. reps+1.
+- 다시: reps=0, lapses+1, ease−0.2, 10분 뒤 다시.
+- 어려움: ease−0.15, interval = max(1, interval×1.2)일.
+- 알맞음: reps 0→1일, 1→3일, 이후 interval×ease일. reps+1.
+- 쉬움: 새 카드 4일, 이후 알맞음 간격×1.3, ease+0.15. reps+1.
+- 카드 상태: interval>0 → 복습, interval=0이고 lapses>0 → 다시 학습, 그 외 → 새 카드.
+- 통계의 날짜 경계는 한국 시간(Asia/Seoul). 정답 = "다시" 외의 답.
 - ease 하한 1.3. 새 카드는 저장 즉시 복습 대상.
 
 ## 공통 기반 재사용

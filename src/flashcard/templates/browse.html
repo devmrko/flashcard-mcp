@@ -1,0 +1,21 @@
+{% extends "tabs.html" %}
+{% block title %}찾아보기 · 플래시카드{% endblock %}
+{% block topbar %}{% call mf.topbar("찾아보기") %}{% endcall %}{% endblock %}
+{% block content %}
+<div class="mf-stack">
+  <form method="get" action="/browse" role="search">
+    {% if deck %}<input type="hidden" name="deck" value="{{ deck }}">{% endif %}
+    {{ mf.field("q", "검색", type="search", value=q, placeholder="표현·뜻·예문", inputmode="search") }}
+  </form>
+  <nav class="fc-chips" aria-label="덱 선택">
+    <a class="fc-chip" href="/browse{% if q %}?q={{ q|urlencode }}{% endif %}"{% if not deck %} aria-current="true"{% endif %}>전체</a>
+    {% for d in decks if d.total %}<a class="fc-chip" href="/browse?deck={{ d.deck }}{% if q %}&q={{ q|urlencode }}{% endif %}"{% if d.deck == deck %} aria-current="true"{% endif %}>{{ d.label }}</a>{% endfor %}
+  </nav>
+  <p class="mf-hint">{{ rows|length }}장{% if rows|length == 200 %} (최근 200장까지 표시){% endif %}</p>
+  {% if rows %}
+  <ul class="mf-list">
+    {% for r in rows %}<li>{{ mf.row(r.card.front, (deck_label(r.card.deck) ~ " · " if not deck else "") ~ r.card.back|truncate(50), href="/c/" ~ r.card.id, trailing=fc.status(r.status)) }}</li>{% endfor %}
+  </ul>
+  {% else %}{{ mf.empty("검색 결과가 없습니다." if q else "카드가 없습니다.") }}{% endif %}
+</div>
+{% endblock %}

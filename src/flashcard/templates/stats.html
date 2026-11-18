@@ -1,0 +1,75 @@
+{% extends "tabs.html" %}
+{% block title %}통계 · 플래시카드{% endblock %}
+{% block topbar %}{% call mf.topbar("통계") %}{% endcall %}{% endblock %}
+{% block content %}
+<div class="mf-stack">
+  <div class="fc-tiles">
+    <div class="fc-tile"><span class="fc-tile__n">{{ s.today }}</span><span class="fc-tile__l">오늘 복습{% if s.today_pass_rate is not none %} · 정답 {{ s.today_pass_rate }}%{% endif %}</span></div>
+    <div class="fc-tile"><span class="fc-tile__n">{{ s.streak }}</span><span class="fc-tile__l">연속 학습일</span></div>
+    <div class="fc-tile"><span class="fc-tile__n">{{ s.total }}</span><span class="fc-tile__l">30일 복습{% if s.pass_rate is not none %} · 정답 {{ s.pass_rate }}%{% endif %}</span></div>
+  </div>
+  <p class="mf-hint">정답 = "다시" 외의 답(어려움·알맞음·쉬움). 날짜는 한국 시간 기준.</p>
+
+  {{ mf.section_title("최근 30일 복습량") }}
+  {% if s.total %}
+  {%- set W, H, top = 360, 120, 18 -%}
+  {%- set slot = W / s.days|length -%}
+  {%- set peak = s.max_count or 1 -%}
+  <figure class="fc-chart" data-chart>
+    <p class="fc-chart__readout" aria-live="polite" data-readout>{{ s.days[-1].label }} · {{ s.days[-1].count }}장</p>
+    <svg viewBox="0 0 {{ W }} {{ H + 22 }}" role="img" aria-label="최근 30일 날짜별 복습 수, 최대 {{ s.max_count }}장">
+      <line x1="0" x2="{{ W }}" y1="{{ H }}" y2="{{ H }}" class="fc-chart__base"/>
+      {%- for d in s.days %}
+      {%- set x = (loop.index0 * slot) + 1 -%}
+      {%- set w = slot - 2 -%}
+      {%- set h = ((d.count / peak) * (H - top))|round(1) if d.count else 0 -%}
+      <g class="fc-chart__slot" data-label="{{ d.label }} · {{ d.count }}장" tabindex="0">
+        <rect x="{{ loop.index0 * slot }}" y="0" width="{{ slot }}" height="{{ H }}" class="fc-chart__hit"/>
+        {%- if h %}
+        {%- set r = [4, w / 2, h]|min -%}
+        <path class="fc-chart__bar" d="M{{ x }},{{ H }}V{{ H - h + r }}Q{{ x }},{{ H - h }} {{ x + r }},{{ H - h }}H{{ x + w - r }}Q{{ x + w }},{{ H - h }} {{ x + w }},{{ H - h + r }}V{{ H }}Z"/>
+        {%- endif %}
+        {%- if loop.last or (d.count == s.max_count and d.count) %}
+        <text x="{{ x + w / 2 }}" y="{{ H - h - 5 }}" text-anchor="middle" class="fc-chart__val">{{ d.count }}</text>
+        {%- endif %}
+        <title>{{ d.label }} · {{ d.count }}장</title>
+      </g>
+      {%- endfor %}
+      <text x="0" y="{{ H + 17 }}" class="fc-chart__axis">{{ s.days[0].label }}</text>
+      <text x="{{ W / 2 }}" y="{{ H + 17 }}" text-anchor="middle" class="fc-chart__axis">{{ s.days[15].label }}</text>
+      <text x="{{ W }}" y="{{ H + 17 }}" text-anchor="end" class="fc-chart__axis">오늘</text>
+    </svg>
+    {% call mf.details("표로 보기") %}
+    <table class="fc-table"><thead><tr><th scope="col">날짜</th><th scope="col">복습</th></tr></thead>
+      <tbody>{% for d in s.days|reverse %}<tr><td>{{ d.label }}</td><td>{{ d.count }}장</td></tr>{% endfor %}</tbody></table>
+    {% endcall %}
+  </figure>
+  <script>
+    document.querySelectorAll("[data-chart]").forEach(function (fig) {
+      var out = fig.querySelector("[data-readout]");
+      fig.querySelectorAll(".fc-chart__slot").forEach(function (g) {
+        function show() {
+          fig.querySelectorAll(".fc-chart__slot.is-on").forEach(function (o) { o.classList.remove("is-on"); });
+          g.classList.add("is-on"); out.textContent = g.dataset.label;
+        }
+        g.addEventListener("pointerenter", show); g.addEventListener("click", show); g.addEventListener("focus", show);
+      });
+    });
+  </script>
+  {% else %}{{ mf.empty("아직 복습 기록이 없습니다. 학습하면 여기에 쌓입니다.") }}{% endif %}
+
+  {% if s.decks %}
+  {{ mf.section_title("덱별 (30일)") }}
+  <ul class="mf-list">
+    {% for d in s.decks %}<li><div class="mf-row"><span class="mf-row__body"><span class="mf-row__title">{{ deck_label(d.deck) }}</span><span class="mf-row__meta">복습 {{ d.count }}장</span></span><span class="mf-row__aside">정답 {{ d.pass_rate }}%</span></div></li>{% endfor %}
+  </ul>
+  {% endif %}
+
+  {{ mf.section_title("자주 틀리는 카드") }}
+  {% if lapsed %}
+  <ul class="mf-list">
+    {% for c in lapsed %}<li>{{ mf.row(c.front, deck_label(c.deck) ~ " · " ~ c.back|truncate(40), href="/c/" ~ c.id, trailing='<span class="mf-badge mf-badge--bad">다시 ' ~ c.lapses ~ '회</span>'|safe) }}</li>{% endfor %}
+  </ul>
+  {% else %}{{ mf.empty("\"다시\"를 누른 카드가 아직 없습니다.") }}{% endif %}
+</div>
+{% endblock %}

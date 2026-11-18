@@ -37,7 +37,7 @@ def main(argv: list[str] | None = None) -> int:
     engine = make_engine(settings)
     if args.cmd == "init-db":
         metadata.create_all(engine)
-        print("tables ready: fc_card")
+        print("tables ready: " + ", ".join(sorted(metadata.tables)))
         return 0
     with engine.connect() as conn:
         conn.execute(text("SELECT 1 FROM dual" if engine.dialect.name == "oracle" else "SELECT 1"))

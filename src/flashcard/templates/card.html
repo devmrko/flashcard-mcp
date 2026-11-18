@@ -1,21 +1,48 @@
 {% extends "layout.html" %}
 {% block title %}카드 · {{ label }}{% endblock %}
-{% block topbar %}{% call mf.topbar("카드", back_url="/d/" ~ card.deck) %}{% endcall %}{% endblock %}
+{% block topbar %}{% call mf.topbar("카드", back_url="/browse?deck=" ~ card.deck) %}{% endcall %}{% endblock %}
 {% block content %}
 <div class="mf-stack">
-  {% if saved %}{% call mf.notice("info") %}저장했습니다.{% endcall %}{% endif %}
-  {% if error %}{% call mf.notice("bad") %}{{ error }}{% endcall %}{% endif %}
-  <p class="mf-hint">{{ label }} · 반복 {{ card.reps }}회 · 틀림 {{ card.lapses }}회 · 다음 복습 {{ card.due_at.strftime("%Y-%m-%d %H:%M") }} UTC · 저장 {{ card.created_by or "기록 없음" }}{% if card.updated_by and card.updated_by != card.created_by %} · 수정 {{ card.updated_by }}{% endif %}</p>
+  {% if saved == "1" %}{% call mf.notice("info") %}저장했습니다.{% endcall %}{% endif %}
+  {% if saved == "exists" %}{% call mf.notice("warn") %}같은 앞면의 카드가 이미 있어 그 카드를 열었습니다.{% endcall %}{% endif %}
+  {% if error %}<div role="alert">{% call mf.notice("bad") %}{{ error }}{% endcall %}</div>{% endif %}
+  <section class="mf-card mf-stack-sm">
+    <p class="fc-meta">{{ fc.status(state) }} <span>{{ label }}</span></p>
+    <p class="fc-front fc-front--left">{{ card.front }}</p>
+    <p class="fc-back">{{ card.back }}</p>
+    {% if card.example %}<p class="fc-example">{{ card.example }}</p>{% endif %}
+    {% if card.note %}<p class="fc-note">{{ card.note }}</p>{% endif %}
+  </section>
+  <dl class="fc-facts">
+    <div><dt>다음 복습</dt><dd>{{ to_local(card.due_at).strftime("%Y-%m-%d %H:%M") }}</dd></div>
+    <div><dt>간격</dt><dd>{{ card.interval_days|round(1) }}일</dd></div>
+    <div><dt>반복</dt><dd>{{ card.reps }}회</dd></div>
+    <div><dt>다시</dt><dd>{{ card.lapses }}회</dd></div>
+    <div><dt>저장</dt><dd>{{ card.created_by or "기록 없음" }}</dd></div>
+    {% if card.updated_by and card.updated_by != card.created_by %}<div><dt>수정</dt><dd>{{ card.updated_by }}</dd></div>{% endif %}
+  </dl>
+
+  {{ mf.section_title("복습 기록") }}
+  {% if history %}
+  <ul class="mf-list">
+    {% for h in history %}
+    <li><div class="mf-row"><span class="mf-row__body"><span class="mf-row__title">{{ to_local(h.reviewed_at).strftime("%m/%d %H:%M") }}</span><span class="mf-row__meta">다음 간격 {{ h.interval_after|round(1) }}일</span></span><span class="mf-badge mf-badge--{{ rating_tones[h.rating] }}">{{ rating_labels[h.rating] }}</span></div></li>
+    {% endfor %}
+  </ul>
+  {% else %}{{ mf.empty("아직 복습하지 않았습니다.") }}{% endif %}
+
+  {% call mf.details("수정", open=bool(error)) %}
   <form method="post" action="/c/{{ card.id }}" class="mf-stack">
     {{ mf.field("deck", "덱", value=card.deck, required=True) }}
     {{ mf.field("front", "앞면", value=card.front, required=True) }}
-    <div class="mf-field"><label class="mf-label" for="f-back">뒷면</label><textarea class="mf-textarea" id="f-back" name="back" rows="4" required>{{ card.back }}</textarea></div>
-    <div class="mf-field"><label class="mf-label" for="f-example">예문</label><textarea class="mf-textarea" id="f-example" name="example" rows="2">{{ card.example or "" }}</textarea></div>
-    <div class="mf-field"><label class="mf-label" for="f-note">메모</label><textarea class="mf-textarea" id="f-note" name="note" rows="2">{{ card.note or "" }}</textarea></div>
+    <div class="mf-field"><label class="mf-label" for="e-back">뒷면</label><textarea class="mf-textarea" id="e-back" name="back" rows="3" required>{{ card.back }}</textarea></div>
+    <div class="mf-field"><label class="mf-label" for="e-example">예문</label><textarea class="mf-textarea" id="e-example" name="example" rows="2">{{ card.example or "" }}</textarea></div>
+    <div class="mf-field"><label class="mf-label" for="e-note">메모</label><textarea class="mf-textarea" id="e-note" name="note" rows="2">{{ card.note or "" }}</textarea></div>
     {{ mf.button("저장", "primary", type="submit", block=True) }}
   </form>
+  {% endcall %}
   {% call mf.details("삭제") %}
-  <form method="post" action="/c/{{ card.id }}/delete">{{ mf.button("이 카드 삭제", "danger", type="submit", block=True) }}</form>
+  <form method="post" action="/c/{{ card.id }}/delete">{{ mf.button("이 카드와 복습 기록 삭제", "danger", type="submit", block=True) }}</form>
   {% endcall %}
 </div>
 {% endblock %}

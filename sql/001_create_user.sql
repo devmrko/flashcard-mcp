@@ -1,5 +1,5 @@
 -- Run ONCE as ADMIN on the vector-knowledge ADB (Database Actions SQL worksheet or sqlplus).
--- Replace the password before running; do not commit the real one.
+-- Replace the password before running. Do not commit the real one.
 CREATE USER flashcard IDENTIFIED BY "<CHANGE_ME_Strong#Passw0rd>";
 GRANT CREATE SESSION, CREATE TABLE, CREATE SEQUENCE TO flashcard;
 ALTER USER flashcard QUOTA 200M ON DATA;
