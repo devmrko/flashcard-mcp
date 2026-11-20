@@ -63,21 +63,10 @@ reviews = Table(
 
 
 def make_engine(settings: Settings) -> Engine:
-    if settings.database_url:
-        args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
-        return create_engine(settings.database_url, connect_args=args, pool_pre_ping=True)
-    missing = [
-        name
-        for name, value in {
-            "FLASHCARD_DB_USER": settings.db_user,
-            "FLASHCARD_DB_PASSWORD": settings.db_password.get_secret_value(),
-            "FLASHCARD_DB_DSN": settings.db_dsn,
-            "FLASHCARD_WALLET_DIR": settings.wallet_dir,
-        }.items()
-        if not value
-    ]
-    if missing:
-        raise ValueError("Missing database configuration: " + ", ".join(missing))
+    if settings.db == "sqlite":
+        return create_engine(
+            settings.sqlite_url, connect_args={"check_same_thread": False}, pool_pre_ping=True
+        )
     wallet = Path(settings.wallet_dir).expanduser()
     if not wallet.is_absolute():
         wallet = ROOT / wallet

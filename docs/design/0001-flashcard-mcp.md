@@ -16,6 +16,7 @@
   - 학습 순서는 Anki처럼 다시 학습 → 복습 → 새 카드. 하루 새 카드 제한·되돌리기는 없음.
 - 덱은 자유 문자열(소문자 slug). 기본 표시: `english`, `it`, `psychology`.
 - 제외: 임베딩 유사도 검색, 다중 사용자, OAuth.
+- 배포 기본값(2026-11-20): `FLASHCARD_DB=sqlite|oracle`로 명시 선택(기본 sqlite, `./flashcard.db`). `serve`가 테이블을 만든다. sqlite인데 Oracle DSN이 남아 있으면 기동 거부(조용한 전환 방지). 운영 `.env`는 `FLASHCARD_DB=oracle`. 컨테이너는 두지 않고 uv + Caddy/nginx 예시만 제공.
 
 ## 구조
 
@@ -67,7 +68,7 @@
 
 ## 공통 기반 재사용
 
-- UI: `mobile-foundation`(경로 의존, receipe와 같은 방식).
+- UI: `mobile-foundation`(GitHub git 의존, 2026-11-20 공개 전환. 함께 고칠 때만 경로 의존으로 바꾼다).
 - DB: python-foundation `create_database`는 월렛 `connect_args`를 받지 않아 vector-knowledge `knowledge_app/database.py`와 같은 방식으로 엔진을 만든다. → 후속: 월렛 엔진 생성기를 python-foundation에 올리는 것을 검토(현재 두 곳 중복).
 
 ## 검증

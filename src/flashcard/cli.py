@@ -29,8 +29,14 @@ def main(argv: list[str] | None = None) -> int:
 
         from flashcard.web import create_app
 
+        engine = make_engine(settings)
+        metadata.create_all(engine)  # idempotent: first run needs no separate init-db
         uvicorn.run(
-            create_app(settings), host=settings.host, port=settings.port, log_level="info", access_log=False
+            create_app(settings, engine),
+            host=settings.host,
+            port=settings.port,
+            log_level="info",
+            access_log=False,
         )
         return 0
 

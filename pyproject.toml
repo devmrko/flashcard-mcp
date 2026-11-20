@@ -7,6 +7,7 @@ name = "flashcard"
 version = "0.1.0"
 description = "Flashcards saved over MCP during conversations, reviewed on a mobile web app"
 requires-python = ">=3.12"
+license = "MIT"
 dependencies = [
   "fastapi>=0.115,<1",
   "uvicorn>=0.34,<1",
@@ -23,7 +24,7 @@ dependencies = [
 flashcard = "flashcard.cli:main"
 
 [tool.uv.sources]
-mobile-foundation = { path = "../mobile-foundation", editable = true }
+mobile-foundation = { git = "https://github.com/devmrko/mobile-foundation.git", branch = "main" }
 
 [dependency-groups]
 dev = ["pytest>=8.3,<10", "ruff>=0.11,<1", "httpx>=0.28,<1"]

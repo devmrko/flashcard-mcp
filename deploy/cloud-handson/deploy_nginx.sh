@@ -1,10 +1,10 @@
 #!/bin/sh
 # Install the nginx conf on .147, get a cert (if missing), reload. Needs sudo on .147.
 set -e
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 HOST=192.168.0.147
 NAME=flashcard.cloud-handson.com
-CONF=deploy/nginx/$NAME.conf
+CONF=deploy/cloud-handson/$NAME.conf
 # HTTP-only variant (first server block) for the ACME challenge before the cert exists.
 awk '/^server \{/{n++} n<=1' "$CONF" > /tmp/$NAME.http.conf
 scp -q "$CONF" /tmp/$NAME.http.conf $HOST:/tmp/

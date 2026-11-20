@@ -81,9 +81,19 @@ def test_html_escaped(client):
 
 def test_exposed_bind_requires_auth(tmp_path):
     with pytest.raises(ValueError):
-        Settings(_env_file=None, host="0.0.0.0", database_url="sqlite:///x.db")
+        Settings(_env_file=None, host="0.0.0.0", sqlite_path="x.db")
     with pytest.raises(ValueError):
         Settings(_env_file=None, mcp_tokens="claude=short")
+
+
+def test_db_choice(tmp_path):
+    assert Settings(_env_file=None, sqlite_path=str(tmp_path / "a.db")).sqlite_url.endswith("/a.db")
+    with pytest.raises(ValueError, match="FLASHCARD_DB_USER"):
+        Settings(_env_file=None, db="oracle")
+    with pytest.raises(ValueError, match="FLASHCARD_DB=oracle"):
+        Settings(_env_file=None, db_dsn="mydb_low")
+    with pytest.raises(ValueError):
+        Settings(_env_file=None, db="postgres")
 
 
 MCP_HEADERS = {"Accept": "application/json, text/event-stream", "Content-Type": "application/json"}

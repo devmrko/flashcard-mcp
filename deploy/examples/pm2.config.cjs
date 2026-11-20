@@ -1,8 +1,9 @@
-// pm2 start ecosystem.config.cjs && pm2 save
+// Keep flashcard running with pm2:  pm2 start deploy/examples/pm2.config.cjs && pm2 save
+const path = require("path");
 module.exports = {
   apps: [{
     name: "flashcard",
-    cwd: __dirname,
+    cwd: path.join(__dirname, "..", ".."),
     script: ".venv/bin/flashcard",
     args: "serve",
     interpreter: "none",

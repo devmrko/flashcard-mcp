@@ -269,7 +269,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "jinja2", specifier = ">=3.1.5,<4" },
     { name = "mcp", specifier = ">=1.12,<2" },
-    { name = "mobile-foundation", editable = "../mobile-foundation" },
+    { name = "mobile-foundation", git = "https://github.com/devmrko/mobile-foundation.git?branch=main" },
     { name = "oracledb", specifier = ">=2.5,<4" },
     { name = "pydantic-settings", specifier = ">=2.6,<3" },
     { name = "python-multipart", specifier = ">=0.0.20" },
@@ -528,24 +528,9 @@ wheels = [
 [[package]]
 name = "mobile-foundation"
 version = "0.1.0"
-source = { editable = "../mobile-foundation" }
+source = { git = "https://github.com/devmrko/mobile-foundation.git?branch=main#f9112e5d9354a00e4270e2cfdd7ac33c8b8121f9" }
 dependencies = [
     { name = "jinja2" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fastapi", marker = "extra == 'fastapi'", specifier = ">=0.115,<1" },
-    { name = "jinja2", specifier = ">=3.1.5,<4" },
-]
-provides-extras = ["fastapi"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "fastapi", specifier = ">=0.115,<1" },
-    { name = "httpx", specifier = ">=0.28,<1" },
-    { name = "pytest", specifier = ">=8.3,<10" },
-    { name = "ruff", specifier = ">=0.11,<1" },
 ]
 
 [[package]]

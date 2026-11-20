@@ -45,9 +45,15 @@ def client_label(ctx: Context) -> str:
 def build_mcp(store: CardStore, public_host: str) -> FastMCP:
     security = TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
-        allowed_hosts=[public_host, "127.0.0.1:*", "localhost:*", "127.0.0.1", "localhost"],
+        allowed_hosts=[
+            *([public_host] if public_host else []),
+            "127.0.0.1:*",
+            "localhost:*",
+            "127.0.0.1",
+            "localhost",
+        ],
         allowed_origins=[
-            f"https://{public_host}",
+            *([f"https://{public_host}"] if public_host else []),
             "https://claude.ai",
             "https://chatgpt.com",
             "http://127.0.0.1:*",

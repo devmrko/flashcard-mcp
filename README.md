@@ -1,11 +1,95 @@
 # flashcard-mcp
 
-대화 중 AI 비서가 MCP로 카드를 저장하고, 폰 브라우저에서 간격 반복으로 복습한다. 설계: [docs/design/0001-flashcard-mcp.md](docs/design/0001-flashcard-mcp.md)
+AI 비서(Claude, ChatGPT, Codex 등)와 대화하다가 MCP 도구로 영어 표현·용어 카드를 저장하고, 폰 브라우저에서 간격 반복(Anki 방식)으로 복습하는 개인용 서버.
 
-- 웹: `https://flashcard.cloud-handson.com/` (Basic Auth, `.env`의 `FLASHCARD_WEB_AUTH`)
-- MCP: `https://flashcard.cloud-handson.com/m/<토큰>/mcp` (Streamable HTTP, URL이 비밀). 토큰은 `.env`의 `FLASHCARD_MCP_TOKENS`에 클라이언트별로 있고(`claude=…,codex=…,chatgpt=…`), 그 라벨이 카드의 `created_by`/`updated_by`에 `mcp:claude`처럼 기록된다. 웹 저장은 `web:<사용자>`.
-- 도구: `list_decks`, `search_cards`, `save_card`, `update_card`
-- 화면: 하단 탭 덱 / 찾아보기 / 통계. 덱 → 학습(답 보기 → 다시·어려움·알맞음·쉬움), 카드 상세에 복습 기록.
+- 대화 중: "이 표현 카드로 저장해줘" → 비서가 `save_card` 호출 (영어 교정이나 개념 설명 뒤 스스로 저장하기도 함)
+- 복습: 덱 → 학습 → 답 보기 → 다시·어려움·알맞음·쉬움. 영어 덱은 한국어를 먼저 보여 주고 영어를 떠올리게 한다.
+- 화면: 하단 탭 덱 / 찾아보기 / 통계(오늘·연속일·30일 막대·자주 틀리는 카드)
+
+한 프로세스(FastAPI)가 웹 화면과 MCP 엔드포인트를 함께 제공한다. DB는 SQLite(기본, 파일 하나)와 Oracle Autonomous DB 중에서 고른다. 설계: [docs/design/0001-flashcard-mcp.md](docs/design/0001-flashcard-mcp.md)
+
+## 빠른 시작 (내 컴퓨터에서만)
+
+준비물: [uv](https://docs.astral.sh/uv/) (Python 3.12는 uv가 받아 온다), git.
+
+```sh
+git clone https://github.com/devmrko/flashcard-mcp.git
+cd flashcard-mcp
+uv sync
+uv run flashcard serve
+```
+
+- 웹: http://127.0.0.1:8810 (localhost에서는 인증 없음)
+- MCP: `http://127.0.0.1:8810/m/local/mcp` (Streamable HTTP)
+- 카드는 `./flashcard.db`에 저장된다. 첫 실행 때 테이블을 만든다.
+
+Claude Code에 연결:
+
+```sh
+claude mcp add --transport http flashcard http://127.0.0.1:8810/m/local/mcp
+```
+
+도구: `list_decks`, `search_cards`, `save_card`, `update_card`. 덱 이름은 자유(소문자)이며 `english`, `it`, `psychology`를 기본으로 표시한다.
+
+## 폰·원격 커넥터에서 쓰기 (서버 공개)
+
+폰 브라우저나 claude.ai·ChatGPT 원격 커넥터는 HTTPS 주소가 필요하다. 앱은 127.0.0.1에 두고 앞에 리버스 프록시를 둔다.
+
+1. 비밀 값 만들기
+
+   ```sh
+   cp .env.example .env && chmod 600 .env
+   uv run flashcard new-token     # 클라이언트마다 한 번씩
+   ```
+
+   `.env`에 채운다:
+
+   ```sh
+   FLASHCARD_PUBLIC_HOST=flashcard.example.com
+   FLASHCARD_WEB_AUTH=me:긴비밀번호
+   FLASHCARD_MCP_TOKENS=claude=<토큰1>,chatgpt=<토큰2>
+   ```
+
+2. 프록시
+   - Caddy(인증서 자동): [deploy/examples/Caddyfile](deploy/examples/Caddyfile)
+   - nginx + certbot: [deploy/examples/nginx.conf](deploy/examples/nginx.conf)
+3. 상시 실행: `pm2 start deploy/examples/pm2.config.cjs && pm2 save` (또는 systemd 등으로 `uv run flashcard serve` 실행)
+4. 확인: `curl https://flashcard.example.com/healthz` → `{"status":"ok"}`
+5. 커넥터 URL: `https://flashcard.example.com/m/<토큰>/mcp`. 토큰 라벨(`claude`, `chatgpt`)이 카드의 `created_by`에 `mcp:claude`처럼 남는다.
+
+주의:
+- URL 자체가 비밀번호다. 커넥터 URL을 공유하거나 로그에 남기지 않는다(예시 프록시 설정은 접근 로그를 끈다).
+- 웹 인증과 MCP 토큰 없이 127.0.0.1 밖으로 바인딩하면 서버가 기동을 거부한다.
+- 같은 와이파이의 폰에서만 쓸 거라면 Tailscale 같은 사설망으로 대신할 수 있다(이때도 `FLASHCARD_HOST`를 바꾸면 인증 값이 필요하다).
+
+## 설정
+
+모두 `.env` 또는 환경 변수. 전체 목록과 설명은 [.env.example](.env.example).
+
+| 변수 | 기본값 | 설명 |
+|------|--------|------|
+| `FLASHCARD_HOST` / `FLASHCARD_PORT` | `127.0.0.1` / `8810` | 바인딩 주소 |
+| `FLASHCARD_PUBLIC_HOST` | (없음) | 프록시 뒤 공개 도메인. MCP Host 검사에 쓴다 |
+| `FLASHCARD_WEB_AUTH` | (없음) | 웹 Basic 인증 `user:pass` |
+| `FLASHCARD_MCP_TOKENS` | (없음) | `label=token,...`, 토큰 32자 이상 |
+| `FLASHCARD_DB` | `sqlite` | `sqlite` 또는 `oracle` |
+| `FLASHCARD_SQLITE_PATH` | `flashcard.db` | sqlite 파일 경로(상대 경로는 프로젝트 폴더 기준) |
+| `FLASHCARD_DB_USER` / `_PASSWORD` / `_DSN`, `FLASHCARD_WALLET_DIR` | (없음) | oracle일 때 필수 |
+
+명령: `flashcard serve | init-db | check-db | new-token`
+
+### DB 고르기
+
+| | SQLite (기본) | Oracle Autonomous DB |
+|---|---|---|
+| 맞는 경우 | 혼자 쓰는 서버 한 대 | 이미 ADB가 있거나, 서버가 바뀌어도 데이터를 클라우드에 두고 싶을 때 |
+| 준비 | 없음 | ADB 생성, 사용자 생성(`deploy/oracle/create_user.sql`), 월렛 zip 받아 풀기 |
+| 설정 | 없음 | `.env`에 `FLASHCARD_DB=oracle`과 접속 값 4개 |
+| 백업 | `flashcard.db` 파일 복사 | ADB 자동 백업 |
+
+Oracle 확인: `uv run flashcard init-db && uv run flashcard check-db` → `ok: oracle, fc_card rows = …`
+
+설정이 어긋나면 서버가 켜지지 않는다: `oracle`인데 접속 값이 빠졌거나, `sqlite`인데 `FLASHCARD_DB_DSN`이 남아 있는 경우(빈 SQLite로 조용히 바뀌는 것을 막기 위해).
 
 ## 개발
 
@@ -13,23 +97,46 @@
 uv sync
 uv run pytest
 uv run ruff check . && uv run ruff format --check .
-FLASHCARD_DATABASE_URL=sqlite:///flashcard.db FLASHCARD_HOST=127.0.0.1 uv run flashcard init-db
-FLASHCARD_DATABASE_URL=sqlite:///flashcard.db FLASHCARD_HOST=127.0.0.1 uv run flashcard serve
-# 로컬 MCP: http://127.0.0.1:8810/m/<token>/mcp
 ```
 
-## 배포 (Mac mini → .208 → .147 nginx)
+화면 공통 스타일·매크로는 [mobile-foundation](https://github.com/devmrko/mobile-foundation)을 git 의존성으로 받는다. 같이 고칠 때는 `pyproject.toml`의 `[tool.uv.sources]`를 잠시 `{ path = "../mobile-foundation", editable = true }`로 바꾼다.
 
-1. Oracle: ADMIN으로 `sql/001_create_user.sql` 실행(비밀번호는 `.env`의 `FLASHCARD_DB_PASSWORD`와 같게).
-2. `uv run flashcard init-db && uv run flashcard check-db`
-3. `pm2 start ecosystem.config.cjs && pm2 save`
-4. 라우터 192.168.0.208: TCP 8810 → 192.168.5.25:8810 포트포워딩.
-5. .147: `deploy/nginx/flashcard.cloud-handson.com.conf`를 `/etc/nginx/conf.d/`에 두고, 처음엔 443 블록을 주석 처리 → `sudo nginx -t && sudo systemctl reload nginx` → `sudo certbot certonly --webroot -w /var/www/html -d flashcard.cloud-handson.com` → 443 블록 활성 → reload.
-6. 확인: `curl -s https://flashcard.cloud-handson.com/healthz`
+## 폴더 구조
 
-## 운영
+```
+src/flashcard/
+  cli.py          serve · init-db · check-db · new-token
+  config.py       .env 설정과 기동 전 검사
+  db.py           테이블 정의, SQLite/Oracle 엔진
+  store.py        카드·복습 기록 저장소
+  srs.py          간격 반복 계산
+  stats.py        통계(한국 시간 기준)
+  mcp_server.py   MCP 도구 4개
+  web.py          웹 라우트 + MCP 마운트
+  templates/ static/
+tests/            pytest (SQLite)
+docs/design/      설계서
+deploy/
+  examples/       Caddyfile, nginx.conf, pm2.config.cjs
+  oracle/         ADB 사용자 생성 SQL
+  cloud-handson/  작성자 배포 구성(참고용)
+```
 
-- `pm2 restart flashcard` / `pm2 logs flashcard`
-- 토큰 추가·교체: `uv run flashcard new-token` → `.env`의 `FLASHCARD_MCP_TOKENS`에 `label=토큰` 추가/교체 → `pm2 restart flashcard` → 해당 커넥터 URL 갱신.
-- 기존 테이블에 저장 주체 열이 없으면 `sql/002_add_saved_by.sql` 실행.
-- uvicorn 접근 로그는 꺼져 있고 nginx도 `/m/` 접근 로그를 남기지 않는다(URL에 토큰이 있음).
+## 한계
+
+- 한 사람용. 사용자 구분·회원가입은 없다.
+- 하루 새 카드 제한, 되돌리기, 카드 가져오기·내보내기는 없다.
+- 비슷한 표현의 중복은 막지 못하고, 앞면이 정확히 같은 카드만 막는다.
+
+## 참고: 작성자 배포 구성
+
+맥 미니(pm2) + Oracle ADB + 별도 nginx 서버(.147)로 운영한다. 설정과 스크립트는 [deploy/cloud-handson/](deploy/cloud-handson/)에 있고, 환경에 맞게 고쳐 쓰는 예시로만 둔다.
+
+- `deploy_mac.sh`: 테이블 생성 → DB 확인 → pm2 시작/재시작 → healthz
+- `deploy_nginx.sh`: nginx conf 설치, 인증서 발급(없을 때), reload
+- Oracle 스키마: `deploy/oracle/create_user.sql`(ADMIN으로 실행). 저장 주체 열이 없던 옛 테이블 보정은 `migrate_add_saved_by.sql`
+- 토큰 교체: `uv run flashcard new-token` → `.env` 수정 → `pm2 restart flashcard` → 커넥터 URL 갱신
+
+## 라이선스
+
+MIT. [LICENSE](LICENSE)

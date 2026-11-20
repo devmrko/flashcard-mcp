@@ -1,0 +1,10 @@
+# Caddy: issues and renews the HTTPS certificate automatically.
+# 1) Point the domain's DNS to this server, open ports 80/443.
+# 2) In .env: FLASHCARD_PUBLIC_HOST=flashcard.example.com (keep FLASHCARD_HOST=127.0.0.1).
+# 3) caddy run --config deploy/examples/Caddyfile   (or copy into /etc/caddy/Caddyfile)
+flashcard.example.com {
+	encode gzip
+	# MCP URLs contain the secret token: keep them out of the access log.
+	log_skip /m/*
+	reverse_proxy 127.0.0.1:8810
+}

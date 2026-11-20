@@ -25,7 +25,7 @@ def store(engine):
 def settings(tmp_path):
     return Settings(
         _env_file=None,
-        database_url=f"sqlite:///{tmp_path / 'unused.db'}",
+        sqlite_path=str(tmp_path / "unused.db"),
         web_auth="me:pw",
         mcp_tokens=f"claude={TOKEN}, codex={CODEX_TOKEN}",
         public_host="flashcard.example.com",
