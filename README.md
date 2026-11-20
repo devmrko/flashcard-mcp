@@ -31,6 +31,17 @@ claude mcp add --transport http flashcard http://127.0.0.1:8810/m/local/mcp
 
 도구: `list_decks`, `search_cards`, `save_card`, `update_card`. 덱 이름은 자유(소문자)이며 `english`, `it`, `psychology`를 기본으로 표시한다.
 
+## 인증
+
+웹과 MCP는 각각 두 가지 중 고른다. 전체 안내: [docs/guides/auth.md](docs/guides/auth.md)
+
+| | 기본 | Google |
+|---|---|---|
+| 웹 `FLASHCARD_AUTH` | `simple`: 아이디·비밀번호 | `google`: 허용한 Google 계정만 ([설정](docs/guides/google-sso.md)) |
+| MCP `FLASHCARD_MCP_AUTH` | `token`: 비밀 URL `/m/<토큰>/mcp` | `google`: `/mcp` + 연결할 때 Google 로그인 ([설정](docs/guides/google-sso.md#mcp-커넥터도-google-로그인으로)) |
+
+내 컴퓨터에서만 쓸 때는 설정이 필요 없다. 127.0.0.1 밖으로 열면 웹·MCP 인증이 모두 있어야 서버가 켜진다.
+
 ## 폰·원격 커넥터에서 쓰기 (서버 공개)
 
 폰 브라우저나 claude.ai·ChatGPT 원격 커넥터는 HTTPS 주소가 필요하다. 앱은 127.0.0.1에 두고 앞에 리버스 프록시를 둔다.
@@ -127,7 +138,7 @@ src/flashcard/
   templates/ static/
 tests/            pytest (SQLite)
 docs/design/      설계서
-docs/guides/      Google 로그인 설정
+docs/guides/      인증 안내(auth.md), Google 로그인 설정(google-sso.md)
 deploy/
   examples/       Caddyfile, nginx.conf, pm2.config.cjs
   oracle/         ADB 사용자 생성 SQL
