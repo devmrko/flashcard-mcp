@@ -8,3 +8,7 @@ __pycache__/
 .env*
 !.env.example
 .claude/
+
+# Google OAuth client files (secrets)
+googleuser.json
+client_secret*.json
