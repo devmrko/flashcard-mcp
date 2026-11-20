@@ -73,3 +73,6 @@
 .fc-chart__axis { font-size: 12px; fill: var(--mf-text-muted); }
 .fc-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .fc-table th, .fc-table td { text-align: left; padding: var(--mf-space-2) 0; border-bottom: 1px solid var(--mf-border); }
+
+/* Signed-in account + logout (google sign-in only) */
+.fc-signout { display: flex; align-items: center; justify-content: space-between; gap: var(--mf-space-2, 8px); }

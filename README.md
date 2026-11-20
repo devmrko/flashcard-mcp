@@ -50,6 +50,10 @@ claude mcp add --transport http flashcard http://127.0.0.1:8810/m/local/mcp
    FLASHCARD_MCP_TOKENS=claude=<토큰1>,chatgpt=<토큰2>
    ```
 
+   웹 로그인은 두 가지 중 고른다(MCP는 어느 쪽이든 URL 토큰):
+   - `FLASHCARD_AUTH=simple`(기본): 위의 `FLASHCARD_WEB_AUTH` 아이디·비밀번호. 설정이 가장 간단하다. 브라우저 기본 로그인 창이 뜨고 로그아웃은 없다.
+   - `FLASHCARD_AUTH=google`: Google 계정으로 로그인, 허용한 이메일만. 폰에서 30일 유지, 로그아웃 있음. Google Cloud에서 OAuth 클라이언트를 만들어야 한다 → [Google 로그인 설정](docs/guides/google-sso.md)
+
 2. 프록시
    - Caddy(인증서 자동): [deploy/examples/Caddyfile](deploy/examples/Caddyfile)
    - nginx + certbot: [deploy/examples/nginx.conf](deploy/examples/nginx.conf)
@@ -59,7 +63,7 @@ claude mcp add --transport http flashcard http://127.0.0.1:8810/m/local/mcp
 
 주의:
 - URL 자체가 비밀번호다. 커넥터 URL을 공유하거나 로그에 남기지 않는다(예시 프록시 설정은 접근 로그를 끈다).
-- 웹 인증과 MCP 토큰 없이 127.0.0.1 밖으로 바인딩하면 서버가 기동을 거부한다.
+- 웹 로그인(simple 또는 google)과 MCP 토큰 없이 127.0.0.1 밖으로 바인딩하면 서버가 기동을 거부한다.
 - 같은 와이파이의 폰에서만 쓸 거라면 Tailscale 같은 사설망으로 대신할 수 있다(이때도 `FLASHCARD_HOST`를 바꾸면 인증 값이 필요하다).
 
 ## 설정
@@ -70,7 +74,9 @@ claude mcp add --transport http flashcard http://127.0.0.1:8810/m/local/mcp
 |------|--------|------|
 | `FLASHCARD_HOST` / `FLASHCARD_PORT` | `127.0.0.1` / `8810` | 바인딩 주소 |
 | `FLASHCARD_PUBLIC_HOST` | (없음) | 프록시 뒤 공개 도메인. MCP Host 검사에 쓴다 |
-| `FLASHCARD_WEB_AUTH` | (없음) | 웹 Basic 인증 `user:pass` |
+| `FLASHCARD_AUTH` | `simple` | 웹 로그인 방식 `simple` 또는 `google` |
+| `FLASHCARD_WEB_AUTH` | (없음) | simple: Basic 인증 `user:pass` |
+| `FLASHCARD_GOOGLE_CLIENT_ID` / `_SECRET`, `FLASHCARD_ALLOWED_EMAILS`, `FLASHCARD_SESSION_SECRET` | (없음) | google일 때 필수. [가이드](docs/guides/google-sso.md) |
 | `FLASHCARD_MCP_TOKENS` | (없음) | `label=token,...`, 토큰 32자 이상 |
 | `FLASHCARD_DB` | `sqlite` | `sqlite` 또는 `oracle` |
 | `FLASHCARD_SQLITE_PATH` | `flashcard.db` | sqlite 파일 경로(상대 경로는 프로젝트 폴더 기준) |
@@ -107,6 +113,7 @@ uv run ruff check . && uv run ruff format --check .
 src/flashcard/
   cli.py          serve · init-db · check-db · new-token
   config.py       .env 설정과 기동 전 검사
+  auth.py         Google 로그인(OpenID Connect)
   db.py           테이블 정의, SQLite/Oracle 엔진
   store.py        카드·복습 기록 저장소
   srs.py          간격 반복 계산
@@ -116,6 +123,7 @@ src/flashcard/
   templates/ static/
 tests/            pytest (SQLite)
 docs/design/      설계서
+docs/guides/      Google 로그인 설정
 deploy/
   examples/       Caddyfile, nginx.conf, pm2.config.cjs
   oracle/         ADB 사용자 생성 SQL
@@ -124,7 +132,7 @@ deploy/
 
 ## 한계
 
-- 한 사람용. 사용자 구분·회원가입은 없다.
+- 한 사람용. google 로그인으로 여러 이메일을 허용할 수 있지만 카드는 모두 공유된다(사용자별 덱·통계 없음).
 - 하루 새 카드 제한, 되돌리기, 카드 가져오기·내보내기는 없다.
 - 비슷한 표현의 중복은 막지 못하고, 앞면이 정확히 같은 카드만 막는다.
 

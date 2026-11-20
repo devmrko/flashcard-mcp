@@ -29,9 +29,19 @@ class Settings(BaseSettings):
     wallet_dir: str = ""
     wallet_password: SecretStr = SecretStr("")
 
-    web_auth: SecretStr = SecretStr("")  # "user:pass"
+    # Web sign-in: "simple" (HTTP Basic with web_auth) or "google" (Google sign-in, allow-listed emails).
+    auth: Literal["simple", "google"] = "simple"
+    web_auth: SecretStr = SecretStr("")  # simple: "user:pass"
+    google_client_id: str = ""
+    google_client_secret: SecretStr = SecretStr("")
+    allowed_emails: str = ""  # google: comma-separated
+    session_secret: SecretStr = SecretStr("")  # google: signs the session cookie, >= 32 chars
     # "label=token,label=token" - one token per client/account; the label is recorded as created_by.
     mcp_tokens: SecretStr = SecretStr("")
+
+    @property
+    def allowed_email_set(self) -> set[str]:
+        return {e.strip().lower() for e in self.allowed_emails.split(",") if e.strip()}
 
     @property
     def sqlite_url(self) -> str:
@@ -83,6 +93,25 @@ class Settings(BaseSettings):
         auth = self.web_auth.get_secret_value()
         if auth and ":" not in auth:
             raise ValueError("FLASHCARD_WEB_AUTH must be user:pass")
-        if not self.local_only and (not auth or not token):
-            raise ValueError("Binding beyond localhost requires FLASHCARD_WEB_AUTH and FLASHCARD_MCP_TOKENS")
+        if self.auth == "google":
+            missing = [
+                name
+                for name, value in {
+                    "FLASHCARD_GOOGLE_CLIENT_ID": self.google_client_id,
+                    "FLASHCARD_GOOGLE_CLIENT_SECRET": self.google_client_secret.get_secret_value(),
+                    "FLASHCARD_ALLOWED_EMAILS": self.allowed_emails.strip(),
+                    "FLASHCARD_SESSION_SECRET": self.session_secret.get_secret_value(),
+                }.items()
+                if not value
+            ]
+            if missing:
+                raise ValueError("FLASHCARD_AUTH=google needs " + ", ".join(missing))
+            if len(self.session_secret.get_secret_value()) < 32:
+                raise ValueError("FLASHCARD_SESSION_SECRET must be >= 32 characters (flashcard new-token)")
+        web_ok = self.auth == "google" or bool(auth)
+        if not self.local_only and (not web_ok or not token):
+            raise ValueError(
+                "Binding beyond localhost requires web sign-in (FLASHCARD_WEB_AUTH or FLASHCARD_AUTH=google)"
+                " and FLASHCARD_MCP_TOKENS"
+            )
         return self

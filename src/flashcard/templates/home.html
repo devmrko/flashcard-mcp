@@ -10,5 +10,11 @@
   {% endfor %}
   </ul>
   <p class="mf-hint">새 덱은 카드 추가 화면에서 새 덱 이름을 적으면 만들어집니다.</p>
+  {% if signed_in %}
+  <form method="post" action="/auth/logout" class="fc-signout">
+    <span class="mf-hint">{{ signed_in }}</span>
+    {{ mf.button("로그아웃", "ghost", type="submit") }}
+  </form>
+  {% endif %}
 </div>
 {% endblock %}

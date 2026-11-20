@@ -14,8 +14,10 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import Engine
+from starlette.middleware.sessions import SessionMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from flashcard import auth as signin
 from flashcard import srs, stats
 from flashcard.config import Settings
 from flashcard.db import make_engine
@@ -64,7 +66,12 @@ def _tag_client(app: ASGIApp, label: str) -> ASGIApp:
     return tagged
 
 
+SESSION_DAYS = 30
+
+
 def _web_user(request: Request) -> str:
+    if "session" in request.scope and request.session.get("email"):
+        return f"web:{request.session['email']}"
     header = request.headers.get("authorization", "")
     try:
         user = base64.b64decode(header[6:]).decode().partition(":")[0] if header else ""
@@ -91,9 +98,26 @@ def create_app(settings: Settings, engine: Engine | None = None) -> FastAPI:
     templates.env.globals["bool"] = bool
 
     auth_value = settings.web_auth.get_secret_value()
+    google = settings.auth == "google"
+    allowed = settings.allowed_email_set
+    if google:
+        app.add_middleware(
+            SessionMiddleware,
+            secret_key=settings.session_secret.get_secret_value(),
+            session_cookie="fc_session",
+            max_age=SESSION_DAYS * 86400,
+            same_site="lax",
+            https_only=bool(settings.public_host),
+        )
 
     def require_auth(request: Request) -> None:
-        if auth_value:
+        if google:
+            if request.session.get("email") not in allowed:
+                if request.method == "GET":
+                    target = request.url.path + (f"?{request.url.query}" if request.url.query else "")
+                    raise HTTPException(303, headers={"Location": "/auth/login?next=" + quote(target)})
+                raise HTTPException(401, "sign in first")
+        elif auth_value:
             header = request.headers.get("authorization", "")
             given = ""
             if header.lower().startswith("basic "):
@@ -134,6 +158,7 @@ def create_app(settings: Settings, engine: Engine | None = None) -> FastAPI:
             decks=decks,
             due_total=sum(d["due"] for d in decks),
             today=len(store.reviews_since(today)),
+            signed_in=request.session.get("email") if google else None,
         )
 
     @web.get("/d/{deck}", response_class=HTMLResponse)
@@ -303,6 +328,53 @@ def create_app(settings: Settings, engine: Engine | None = None) -> FastAPI:
             raise HTTPException(404)
         store.remove(card_id)
         return RedirectResponse(f"/browse?deck={card.deck}", 303)
+
+    def redirect_uri(request: Request) -> str:
+        if settings.public_host:
+            return f"https://{settings.public_host}/auth/callback"
+        return f"{request.url.scheme}://{request.url.netloc}/auth/callback"
+
+    def signin_page(request: Request, message: str, status: int) -> HTMLResponse:
+        return render(request, "signin.html", status=status, message=message)
+
+    @app.get("/auth/login", response_model=None)
+    def login(request: Request, next: str = "/") -> Response:
+        if not google:
+            return RedirectResponse("/", 303)
+        state, nonce = secrets.token_urlsafe(24), secrets.token_urlsafe(24)
+        request.session["oauth"] = {"state": state, "nonce": nonce, "next": signin.safe_next(next)}
+        url = signin.authorize_url(settings.google_client_id, redirect_uri(request), state, nonce)
+        return RedirectResponse(url, 303)
+
+    @app.get("/auth/callback", response_model=None)
+    def callback(request: Request, code: str = "", state: str = "", error: str = "") -> Response:
+        if not google:
+            raise HTTPException(404)
+        pending = request.session.pop("oauth", None) or {}
+        if error:
+            return signin_page(request, "Google 로그인이 취소되었습니다.", 400)
+        if not code or not state or not secrets.compare_digest(state, pending.get("state", "")):
+            return signin_page(request, "로그인 요청이 일치하지 않습니다. 다시 로그인하세요.", 400)
+        try:
+            claims = signin.exchange_code(
+                code,
+                settings.google_client_id,
+                settings.google_client_secret.get_secret_value(),
+                redirect_uri(request),
+            )
+            email = signin.check_claims(claims, settings.google_client_id, pending.get("nonce", ""), allowed)
+        except signin.SignInError as exc:
+            return signin_page(request, str(exc), 403)
+        request.session.clear()
+        request.session["email"] = email
+        return RedirectResponse(pending.get("next", "/"), 303)
+
+    @web.post("/auth/logout")
+    def logout(request: Request) -> Response:
+        if google:
+            request.session.clear()
+            return signin_page(request, "로그아웃했습니다.", 200)
+        return RedirectResponse("/", 303)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:

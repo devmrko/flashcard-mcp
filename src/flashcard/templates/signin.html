@@ -1,0 +1,9 @@
+{% extends "layout.html" %}
+{% block title %}로그인 · 플래시카드{% endblock %}
+{% block topbar %}{% call mf.topbar("플래시카드") %}{% endcall %}{% endblock %}
+{% block content %}
+<div class="mf-stack">
+  <p>{{ message }}</p>
+  {{ mf.button("Google로 로그인", "primary", href="/auth/login", block=True) }}
+</div>
+{% endblock %}
