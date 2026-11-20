@@ -35,7 +35,8 @@
 - 웹: `FLASHCARD_AUTH`로 고른다(2026-11-20 추가). nginx는 TLS·프록시만 한다.
   - `simple`(기본): 앱 자체 HTTP Basic(`FLASHCARD_WEB_AUTH=user:pass`). localhost 바인딩이고 값이 비면 인증 없음(로컬 개발).
   - `google`: OpenID Connect 인가 코드 방식. state·nonce를 세션에 두고, ID 토큰은 토큰 엔드포인트에서 TLS로 직접 받으므로 서명 대신 TLS로 발급자를 확인(OIDC Core 3.1.3.7)하고 iss·aud·exp·nonce·email_verified·허용 목록(`FLASHCARD_ALLOWED_EMAILS`)을 검사한다. 세션은 itsdangerous 서명 쿠키(`fc_session`, 30일, SameSite=Lax, 공개 도메인이면 Secure). 허용 목록은 매 요청 검사해 목록에서 빠지면 바로 막힌다. GET은 로그인으로 303, POST는 401. `next`는 같은 사이트 상대 경로만. 저장 주체는 `web:<이메일>`. 설정 가이드: docs/guides/google-sso.md.
-- MCP: URL 경로의 비밀 토큰. 클라이언트·계정마다 따로 발급한다(`FLASHCARD_MCP_TOKENS=claude=…,codex=…,chatgpt=…`, 각 32자 이상). ChatGPT·Claude 원격 커넥터는 OAuth 아니면 무인증만 지원하므로 헤더 토큰 대신 경로 토큰을 쓴다. URL 자체가 비밀번호이므로 로그·공유에 주의한다.
+- MCP: 기본은 URL 경로의 비밀 토큰(아래). `FLASHCARD_MCP_AUTH=google`이면 `/mcp`에 OAuth + Google 로그인([0002](0002-mcp-oauth.md)).
+- 경로 토큰: 클라이언트·계정마다 따로 발급한다(`FLASHCARD_MCP_TOKENS=claude=…,codex=…,chatgpt=…`, 각 32자 이상). ChatGPT·Claude 원격 커넥터는 OAuth 아니면 무인증만 지원하므로 헤더 토큰 대신 경로 토큰을 쓴다. URL 자체가 비밀번호이므로 로그·공유에 주의한다.
 - 설정이 없으면 기동을 거부한다(무인증 노출 방지). 예외: 바인딩이 127.0.0.1이고 웹 인증이 비어 있으면 로컬 개발로 본다.
 - MCP 전송 보안: Host 허용 목록(공개 도메인, localhost) 검사를 켠다.
 

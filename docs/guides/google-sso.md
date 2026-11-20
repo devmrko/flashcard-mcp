@@ -2,7 +2,7 @@
 
 웹 화면 로그인을 Basic 인증 대신 Google 계정으로 하게 하는 방법. 허용 목록에 넣은 이메일만 들어올 수 있다. 한 번 로그인하면 30일 동안 유지되고, 첫 화면 아래에 로그아웃 버튼이 생긴다.
 
-MCP는 바뀌지 않는다. AI 비서 커넥터는 계속 `/m/<토큰>/mcp` 주소의 토큰으로 인증한다.
+MCP 커넥터는 기본으로 `/m/<토큰>/mcp` 주소의 토큰을 계속 쓴다. 커넥터도 Google 로그인으로 바꾸려면 아래 [MCP 커넥터도 Google 로그인으로](#mcp-커넥터도-google-로그인으로)를 이어서 한다.
 
 ## 준비물
 
@@ -74,6 +74,30 @@ uv run flashcard new-token    # FLASHCARD_SESSION_SECRET 용 무작위 값
 | 보안 비밀번호 유출 | 3단계 클라이언트에서 새 보안 비밀번호 추가 → `.env` 교체 → 재시작 → 옛 값 삭제 |
 | Basic 인증으로 되돌리기 | `FLASHCARD_AUTH=simple`, `FLASHCARD_WEB_AUTH=user:pass` → 재시작 |
 
+## MCP 커넥터도 Google 로그인으로
+
+웹 Google 로그인(1~5단계)이 끝난 상태에서 한다. Google 콘솔에 추가할 것은 없다(같은 `/auth/callback`을 쓴다).
+
+1. `.env`에 추가하고 재시작:
+
+   ```sh
+   FLASHCARD_MCP_AUTH=google
+   ```
+
+   `FLASHCARD_MCP_TOKENS`는 지워도 되고 남겨도 된다. 남기면 `/m/<토큰>/mcp`도 계속 동작한다(OAuth를 지원하지 않는 클라이언트용).
+2. 확인: `curl https://flashcard.example.com/.well-known/oauth-authorization-server` → `issuer`, `authorization_endpoint` 등이 나온다.
+3. 커넥터 등록. URL은 모두 `https://flashcard.example.com/mcp`:
+   - claude.ai: 설정 → 커넥터 → 사용자 지정 커넥터 추가 → URL 입력 → **연결** → Google 로그인.
+   - Claude Code: `claude mcp add --transport http flashcard https://flashcard.example.com/mcp` → 세션에서 `/mcp` → flashcard → 인증.
+   - ChatGPT 등 다른 클라이언트: 원격 MCP 서버에 OAuth를 지원하면 같은 URL로 등록한다. 지원하지 않으면 경로 토큰 URL을 쓴다.
+4. 커넥터로 카드를 저장하면 `created_by`가 `mcp:<클라이언트 이름>/<이메일>`로 기록된다.
+
+동작:
+- 클라이언트가 앱에 자동 등록하고, 연결 버튼을 누르면 Google 로그인 → 허용 목록 확인 → 앱이 그 클라이언트 전용 토큰(1시간, 갱신 토큰 30일)을 발급한다.
+- 토큰은 DB에 해시로만 저장한다. 사람을 `FLASHCARD_ALLOWED_EMAILS`에서 빼고 재시작하면 그 사람의 모든 커넥터 토큰이 바로 거부된다.
+- 30일 넘게 쓰지 않으면 다시 연결(로그인)해야 한다.
+- 자세한 설계: [docs/design/0002-mcp-oauth.md](../design/0002-mcp-oauth.md)
+
 ## 문제 해결
 
 | 증상 | 원인과 조치 |
@@ -84,6 +108,9 @@ uv run flashcard new-token    # FLASHCARD_SESSION_SECRET 용 무작위 값
 | 로그인 후 다시 로그인 화면으로 돌아옴 | 공개 서버인데 http로 접속했다(쿠키가 HTTPS 전용). https 주소로 연다 |
 | "로그인 요청이 일치하지 않습니다" | 로그인 도중 창을 여러 개 열었거나 오래 지났다. 다시 로그인 |
 | 서버가 `FLASHCARD_AUTH=google needs …`로 안 켜짐 | 4단계 값이 빠졌다. 메시지에 나온 변수를 채운다 |
+| 서버가 `FLASHCARD_MCP_AUTH=google needs FLASHCARD_AUTH=google`로 안 켜짐 | MCP Google 로그인은 웹 Google 설정을 함께 쓴다. 1~4단계를 먼저 한다 |
+| 커넥터 연결 중 "로그인 요청이 만료되었습니다" | 10분 안에 로그인을 마치지 못했거나 그 사이 서버가 재시작됐다. 클라이언트에서 다시 연결 |
+| 커넥터가 갑자기 401 | 토큰 만료 후 갱신 실패, 또는 허용 목록에서 빠졌다. 다시 연결 |
 
 ## 동작 방식 (참고)
 

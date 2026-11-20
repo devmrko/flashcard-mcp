@@ -13,6 +13,7 @@ from sqlalchemy import (
     MetaData,
     String,
     Table,
+    Text,
     UniqueConstraint,
     create_engine,
 )
@@ -59,6 +60,30 @@ reviews = Table(
     Column("interval_after", Float, nullable=False),
     Column("ease_after", Float, nullable=False),
     Column("reviewed_by", String(60)),
+)
+
+
+# MCP OAuth (FLASHCARD_MCP_AUTH=google, docs/design/0002-mcp-oauth.md).
+oauth_clients = Table(
+    "fc_oauth_client",
+    metadata,
+    Column("client_id", String(64), primary_key=True),
+    Column("info", Text, nullable=False),  # OAuthClientInformationFull as JSON
+    Column("created_at", DateTime, nullable=False),
+)
+
+# Only the SHA-256 of each token is stored. An access token and its refresh token share pair_id.
+oauth_tokens = Table(
+    "fc_oauth_token",
+    metadata,
+    Column("token_hash", String(64), primary_key=True),
+    Column("kind", String(10), nullable=False),  # access | refresh
+    Column("pair_id", String(64), nullable=False, index=True),
+    Column("client_id", String(64), nullable=False),
+    Column("subject", String(320), nullable=False),  # Google email
+    Column("scopes", String(500), nullable=False),
+    Column("resource", String(500)),
+    Column("expires_at", Integer, nullable=False),  # unix seconds
 )
 
 

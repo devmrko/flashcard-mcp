@@ -59,7 +59,9 @@ claude mcp add --transport http flashcard http://127.0.0.1:8810/m/local/mcp
    - nginx + certbot: [deploy/examples/nginx.conf](deploy/examples/nginx.conf)
 3. 상시 실행: `pm2 start deploy/examples/pm2.config.cjs && pm2 save` (또는 systemd 등으로 `uv run flashcard serve` 실행)
 4. 확인: `curl https://flashcard.example.com/healthz` → `{"status":"ok"}`
-5. 커넥터 URL: `https://flashcard.example.com/m/<토큰>/mcp`. 토큰 라벨(`claude`, `chatgpt`)이 카드의 `created_by`에 `mcp:claude`처럼 남는다.
+5. 커넥터 연결은 두 가지 중 고른다(`FLASHCARD_MCP_AUTH`):
+   - `token`(기본): URL `https://flashcard.example.com/m/<토큰>/mcp`. 붙여넣기만 하면 된다. 토큰 라벨이 `created_by`에 `mcp:claude`처럼 남는다.
+   - `google`: URL `https://flashcard.example.com/mcp` + 연결할 때 Google 로그인. URL이 새도 안전하고, 허용 목록에서 빼면 그 사람의 커넥터가 바로 막힌다. `created_by`는 `mcp:claude/me@gmail.com`. 웹도 google 로그인이어야 한다 → [Google 로그인 설정](docs/guides/google-sso.md#mcp-커넥터도-google-로그인으로)
 
 주의:
 - URL 자체가 비밀번호다. 커넥터 URL을 공유하거나 로그에 남기지 않는다(예시 프록시 설정은 접근 로그를 끈다).
@@ -77,7 +79,8 @@ claude mcp add --transport http flashcard http://127.0.0.1:8810/m/local/mcp
 | `FLASHCARD_AUTH` | `simple` | 웹 로그인 방식 `simple` 또는 `google` |
 | `FLASHCARD_WEB_AUTH` | (없음) | simple: Basic 인증 `user:pass` |
 | `FLASHCARD_GOOGLE_CLIENT_ID` / `_SECRET`, `FLASHCARD_ALLOWED_EMAILS`, `FLASHCARD_SESSION_SECRET` | (없음) | google일 때 필수. [가이드](docs/guides/google-sso.md) |
-| `FLASHCARD_MCP_TOKENS` | (없음) | `label=token,...`, 토큰 32자 이상 |
+| `FLASHCARD_MCP_AUTH` | `token` | MCP 연결 방식 `token` 또는 `google` |
+| `FLASHCARD_MCP_TOKENS` | (없음) | `label=token,...`, 토큰 32자 이상. google 모드에서는 선택(OAuth를 못 하는 클라이언트용) |
 | `FLASHCARD_DB` | `sqlite` | `sqlite` 또는 `oracle` |
 | `FLASHCARD_SQLITE_PATH` | `flashcard.db` | sqlite 파일 경로(상대 경로는 프로젝트 폴더 기준) |
 | `FLASHCARD_DB_USER` / `_PASSWORD` / `_DSN`, `FLASHCARD_WALLET_DIR` | (없음) | oracle일 때 필수 |
@@ -114,6 +117,7 @@ src/flashcard/
   cli.py          serve · init-db · check-db · new-token
   config.py       .env 설정과 기동 전 검사
   auth.py         Google 로그인(OpenID Connect)
+  oauth.py        MCP 클라이언트용 OAuth 서버(사람 확인은 Google)
   db.py           테이블 정의, SQLite/Oracle 엔진
   store.py        카드·복습 기록 저장소
   srs.py          간격 반복 계산

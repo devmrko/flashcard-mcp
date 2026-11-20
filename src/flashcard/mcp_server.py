@@ -2,6 +2,8 @@
 
 from typing import Any
 
+from mcp.server.auth.provider import OAuthAuthorizationServerProvider
+from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
@@ -36,13 +38,31 @@ CLIENT_SCOPE_KEY = "flashcard.client"
 
 
 def client_label(ctx: Context) -> str:
-    """Label of the token the request came in on (set by the per-token mount in web.py)."""
+    """Who saved: the path-token label (set by the per-token mount in web.py), or for OAuth
+    "<client name>/<email>" from the bearer token (docs/design/0002-mcp-oauth.md)."""
     request = ctx.request_context.request
-    label = request.scope.get(CLIENT_SCOPE_KEY) if request is not None else None
-    return f"mcp:{label or 'unknown'}"
+    scope = request.scope if request is not None else {}
+    label = scope.get(CLIENT_SCOPE_KEY)
+    if label is None:
+        user = scope.get("user")
+        token = getattr(user, "access_token", None)
+        if token is not None:
+            namer = scope.get(CLIENT_NAMER_KEY)
+            name = namer(token.client_id) if namer else "client"
+            label = f"{name}/{token.subject}"
+    return f"mcp:{label or 'unknown'}"[:60]
 
 
-def build_mcp(store: CardStore, public_host: str) -> FastMCP:
+CLIENT_NAMER_KEY = "flashcard.client_namer"
+
+
+def build_mcp(
+    store: CardStore,
+    public_host: str,
+    oauth: OAuthAuthorizationServerProvider | None = None,
+    base_url: str = "",
+) -> FastMCP:
+    """oauth=None: plain endpoint (mounted under /m/<token>). With oauth: /mcp protected by OAuth."""
     security = TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
         allowed_hosts=[
@@ -60,6 +80,15 @@ def build_mcp(store: CardStore, public_host: str) -> FastMCP:
             "http://localhost:*",
         ],
     )
+    auth = None
+    if oauth is not None:
+        auth = AuthSettings(
+            issuer_url=base_url,
+            resource_server_url=f"{base_url}/mcp",
+            validate_token_resource=False,  # tokens are only issued by this app, for this app
+            client_registration_options=ClientRegistrationOptions(enabled=True),
+            revocation_options=RevocationOptions(enabled=True),
+        )
     mcp = FastMCP(
         "flashcard",
         instructions=INSTRUCTIONS,
@@ -67,6 +96,8 @@ def build_mcp(store: CardStore, public_host: str) -> FastMCP:
         json_response=True,
         streamable_http_path="/mcp",
         transport_security=security,
+        auth=auth,
+        auth_server_provider=oauth,
     )
 
     @mcp.tool()

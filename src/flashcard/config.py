@@ -36,12 +36,20 @@ class Settings(BaseSettings):
     google_client_secret: SecretStr = SecretStr("")
     allowed_emails: str = ""  # google: comma-separated
     session_secret: SecretStr = SecretStr("")  # google: signs the session cookie, >= 32 chars
+    # MCP sign-in: "token" (secret path /m/<token>/mcp) or "google" (OAuth at /mcp, Google sign-in;
+    # needs auth=google). Path tokens below keep working in google mode when set.
+    mcp_auth: Literal["token", "google"] = "token"
     # "label=token,label=token" - one token per client/account; the label is recorded as created_by.
     mcp_tokens: SecretStr = SecretStr("")
 
     @property
     def allowed_email_set(self) -> set[str]:
         return {e.strip().lower() for e in self.allowed_emails.split(",") if e.strip()}
+
+    @property
+    def base_url(self) -> str:
+        """Public origin of this app (OAuth issuer, Google redirect)."""
+        return f"https://{self.public_host}" if self.public_host else f"http://localhost:{self.port}"
 
     @property
     def sqlite_url(self) -> str:
@@ -108,10 +116,13 @@ class Settings(BaseSettings):
                 raise ValueError("FLASHCARD_AUTH=google needs " + ", ".join(missing))
             if len(self.session_secret.get_secret_value()) < 32:
                 raise ValueError("FLASHCARD_SESSION_SECRET must be >= 32 characters (flashcard new-token)")
+        if self.mcp_auth == "google" and self.auth != "google":
+            raise ValueError("FLASHCARD_MCP_AUTH=google needs FLASHCARD_AUTH=google (same Google client)")
         web_ok = self.auth == "google" or bool(auth)
-        if not self.local_only and (not web_ok or not token):
+        mcp_ok = self.mcp_auth == "google" or token
+        if not self.local_only and (not web_ok or not mcp_ok):
             raise ValueError(
                 "Binding beyond localhost requires web sign-in (FLASHCARD_WEB_AUTH or FLASHCARD_AUTH=google)"
-                " and FLASHCARD_MCP_TOKENS"
+                " and MCP sign-in (FLASHCARD_MCP_TOKENS or FLASHCARD_MCP_AUTH=google)"
             )
         return self

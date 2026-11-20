@@ -1,4 +1,4 @@
-"""FastAPI app: mobile review UI (HTTP Basic) + MCP endpoint at /m/<token>/mcp."""
+"""FastAPI app: mobile review UI + MCP at /m/<token>/mcp and, with MCP OAuth, at /mcp."""
 
 import base64
 import contextlib
@@ -21,7 +21,8 @@ from flashcard import auth as signin
 from flashcard import srs, stats
 from flashcard.config import Settings
 from flashcard.db import make_engine
-from flashcard.mcp_server import CLIENT_SCOPE_KEY, build_mcp
+from flashcard.mcp_server import CLIENT_NAMER_KEY, CLIENT_SCOPE_KEY, build_mcp
+from flashcard.oauth import GoogleOAuthProvider
 from flashcard.store import REVERSED_DECKS, Card, CardError, CardStore, deck_label, normalize_deck, now_utc
 
 TEMPLATES = Path(__file__).parent / "templates"
@@ -69,6 +70,15 @@ def _tag_client(app: ASGIApp, label: str) -> ASGIApp:
 SESSION_DAYS = 30
 
 
+def _with_namer(app: ASGIApp, namer) -> ASGIApp:
+    """Lets MCP tools turn the bearer token's client_id into a short name for created_by."""
+
+    async def named(scope: Scope, receive: Receive, send: Send) -> None:
+        await app({**scope, CLIENT_NAMER_KEY: namer}, receive, send)
+
+    return named
+
+
 def _web_user(request: Request) -> str:
     if "session" in request.scope and request.session.get("email"):
         return f"web:{request.session['email']}"
@@ -84,10 +94,24 @@ def create_app(settings: Settings, engine: Engine | None = None) -> FastAPI:
     store = CardStore(engine or make_engine(settings))
     mcp = build_mcp(store, settings.public_host)
     mcp_app = mcp.streamable_http_app()
+    oauth: GoogleOAuthProvider | None = None
+    oauth_mcp = None
+    if settings.mcp_auth == "google":
+        oauth = GoogleOAuthProvider(
+            engine=store.engine,
+            google_client_id=settings.google_client_id,
+            google_client_secret=settings.google_client_secret.get_secret_value(),
+            allowed=settings.allowed_email_set,
+            callback_url=f"{settings.base_url}/auth/callback",
+        )
+        oauth_mcp = build_mcp(store, settings.public_host, oauth, settings.base_url)
 
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        async with mcp.session_manager.run():
+        async with contextlib.AsyncExitStack() as stack:
+            await stack.enter_async_context(mcp.session_manager.run())
+            if oauth_mcp is not None:
+                await stack.enter_async_context(oauth_mcp.session_manager.run())
             yield
         store.engine.dispose()
 
@@ -350,6 +374,14 @@ def create_app(settings: Settings, engine: Engine | None = None) -> FastAPI:
     def callback(request: Request, code: str = "", state: str = "", error: str = "") -> Response:
         if not google:
             raise HTTPException(404)
+        if oauth is not None and state and oauth.is_pending(state):  # MCP client sign-in
+            if error:
+                oauth.pending.pop(state, None)
+                return signin_page(request, "Google 로그인이 취소되었습니다.", 400)
+            try:
+                return RedirectResponse(oauth.finish_google_sign_in(state, code), 302)
+            except signin.SignInError as exc:
+                return signin_page(request, str(exc), 403)
         pending = request.session.pop("oauth", None) or {}
         if error:
             return signin_page(request, "Google 로그인이 취소되었습니다.", 400)
@@ -384,5 +416,9 @@ def create_app(settings: Settings, engine: Engine | None = None) -> FastAPI:
     tokens = settings.client_tokens or ({"local": "local"} if settings.local_only else {})
     for token, label in tokens.items():
         app.mount(f"/m/{token}", _tag_client(mcp_app, label))
+    if oauth is not None and oauth_mcp is not None:
+        # /mcp, /authorize, /token, /register, /revoke and /.well-known/* (mounted last: catch-all)
+        app.mount("/", _with_namer(oauth_mcp.streamable_http_app(), oauth.client_name))
     app.state.store = store
+    app.state.oauth = oauth
     return app
