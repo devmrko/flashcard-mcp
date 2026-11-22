@@ -51,7 +51,7 @@ FLASHCARD_MCP_TOKENS=claude=<토큰1>,chatgpt=<토큰2>
 설정 순서와 문제 해결은 [Google 로그인 설정](google-sso.md):
 1. Google Cloud에서 OAuth 클라이언트 만들기 (리디렉션 URI `https://<도메인>/auth/callback`)
 2. `.env`에 `FLASHCARD_AUTH=google`, 클라이언트 ID·보안 비밀번호, `FLASHCARD_ALLOWED_EMAILS`, `FLASHCARD_SESSION_SECRET`
-3. MCP도 바꾸려면 `FLASHCARD_MCP_AUTH=google` 추가 → 커넥터 URL은 `https://<도메인>/mcp`
+3. MCP도 바꾸려면 `FLASHCARD_MCP_AUTH=google` 추가 → 커넥터 URL은 `https://<도메인>/mcp`. 웹 첫 화면 → **AI 커넥터 연결**에 주소와 앱별 연결 방법이 나온다(토큰 주소는 비밀이라 라벨만 표시)
 
 ## 저장되는 것과 저장되지 않는 것
 

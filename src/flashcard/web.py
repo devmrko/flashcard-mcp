@@ -185,6 +185,22 @@ def create_app(settings: Settings, engine: Engine | None = None) -> FastAPI:
             signed_in=request.session.get("email") if google else None,
         )
 
+    @web.get("/connect", response_class=HTMLResponse)
+    def connect_page(request: Request) -> HTMLResponse:
+        if oauth is not None:
+            url = f"{settings.base_url}/mcp"
+        elif settings.local_only and not settings.client_tokens:
+            url = f"{settings.base_url}/m/local/mcp"
+        else:
+            url = ""  # token URLs are secrets: never rendered
+        return render(
+            request,
+            "connect.html",
+            url=url,
+            google=oauth is not None,
+            labels=sorted(settings.client_tokens.values()),
+        )
+
     @web.get("/d/{deck}", response_class=HTMLResponse)
     def deck_page(request: Request, deck: str) -> HTMLResponse:
         deck = deck_or_404(deck)

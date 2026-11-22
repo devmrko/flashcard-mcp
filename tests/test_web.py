@@ -9,7 +9,7 @@ from flashcard.config import Settings
 from flashcard.db import cards
 from flashcard.web import create_app
 
-from .conftest import TOKEN
+from .conftest import CODEX_TOKEN, TOKEN
 
 AUTH = {"Authorization": "Basic " + base64.b64encode(b"me:pw").decode()}
 
@@ -150,7 +150,6 @@ def _saved_card(response):
 
 
 def test_saved_by_client_label(client):
-    from .conftest import CODEX_TOKEN
 
     a = _rpc(
         client,
@@ -224,3 +223,12 @@ def test_tabs_and_queue_order(client, store):
     assert store.next_due("it")[0].id == new.id  # relearning comes before new cards
     counts = store.deck_counts("it")
     assert (counts["new"], counts["learn"], counts["review"]) == (1, 1, 0)
+
+
+def test_connect_page_hides_token_urls(client):
+    page = client.get("/connect", headers=AUTH)
+    assert page.status_code == 200
+    assert "claude, codex" in page.text
+    assert TOKEN not in page.text and CODEX_TOKEN not in page.text
+    assert client.get("/connect").status_code == 401
+    assert 'href="/connect"' in client.get("/", headers=AUTH).text

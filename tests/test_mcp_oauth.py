@@ -267,3 +267,25 @@ def test_registration_and_pending_caps(app, client, monkeypatch):
         },
     )
     assert resp.status_code == 302 and "temporarily_unavailable" in resp.headers["location"]
+
+
+def test_connect_page_shows_mcp_url_after_sign_in(client, monkeypatch):
+    assert client.get("/connect").status_code == 303  # sign in first
+    start = parse_qs(
+        urlsplit(client.get("/auth/login", params={"next": "/connect"}).headers["location"]).query
+    )
+    claims = {
+        "iss": "https://accounts.google.com",
+        "aud": CLIENT_ID,
+        "exp": time.time() + 300,
+        "nonce": start["nonce"][0],
+        "email": "me@example.com",
+        "email_verified": True,
+    }
+    monkeypatch.setattr(signin, "exchange_code", lambda *a: claims)
+    back = client.get("/auth/callback", params={"code": "c", "state": start["state"][0]})
+    assert back.headers["location"] == "/connect"
+    page = client.get("/connect")
+    assert page.status_code == 200
+    assert f'value="https://{HOST}/mcp"' in page.text
+    assert TOKEN not in page.text and "claude" in page.text

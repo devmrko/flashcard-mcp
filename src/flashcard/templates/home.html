@@ -9,6 +9,9 @@
     <li>{{ mf.row(d.label, "카드 " ~ d.total ~ "장", href="/d/" ~ d.deck, trailing=fc.counts(d)) }}</li>
   {% endfor %}
   </ul>
+  <ul class="mf-list">
+    <li>{{ mf.row("AI 커넥터 연결", "Claude·ChatGPT에 넣을 MCP 주소", href="/connect") }}</li>
+  </ul>
   <p class="mf-hint">새 덱은 카드 추가 화면에서 새 덱 이름을 적으면 만들어집니다.</p>
   {% if signed_in %}
   <form method="post" action="/auth/logout" class="fc-signout">

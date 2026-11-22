@@ -86,7 +86,7 @@ uv run flashcard new-token    # FLASHCARD_SESSION_SECRET 용 무작위 값
 
    `FLASHCARD_MCP_TOKENS`는 지워도 되고 남겨도 된다. 남기면 `/m/<토큰>/mcp`도 계속 동작한다(OAuth를 지원하지 않는 클라이언트용).
 2. 확인: `curl https://flashcard.example.com/.well-known/oauth-authorization-server` → `issuer`, `authorization_endpoint` 등이 나온다.
-3. 커넥터 등록. URL은 모두 `https://flashcard.example.com/mcp`:
+3. 커넥터 등록. URL은 모두 `https://flashcard.example.com/mcp`(웹에 로그인한 뒤 첫 화면 → **AI 커넥터 연결**에서 복사할 수 있다):
    - claude.ai: 설정 → 커넥터 → 사용자 지정 커넥터 추가 → URL 입력 → **연결** → Google 로그인.
    - Claude Code: `claude mcp add --transport http flashcard https://flashcard.example.com/mcp` → 세션에서 `/mcp` → flashcard → 인증.
    - ChatGPT 등 다른 클라이언트: 원격 MCP 서버에 OAuth를 지원하면 같은 URL로 등록한다. 지원하지 않으면 경로 토큰 URL을 쓴다.
