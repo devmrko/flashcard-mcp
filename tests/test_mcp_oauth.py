@@ -289,3 +289,7 @@ def test_connect_page_shows_mcp_url_after_sign_in(client, monkeypatch):
     assert page.status_code == 200
     assert f'value="https://{HOST}/mcp"' in page.text
     assert TOKEN not in page.text and "claude" in page.text
+    detail = client.get("/connect/claude-code")
+    assert detail.status_code == 200
+    assert f"claude mcp add --transport http flashcard https://{HOST}/mcp" in detail.text
+    assert client.get("/connect/nope").status_code == 404

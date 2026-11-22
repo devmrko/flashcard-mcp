@@ -77,6 +77,3 @@
 /* Signed-in account + logout (google sign-in only) */
 .fc-signout { display: flex; align-items: center; justify-content: space-between; gap: var(--mf-space-2, 8px); }
 
-/* MCP connector address + copy */
-.fc-copy { display: flex; gap: var(--mf-space-2, 8px); }
-.fc-copy__input { flex: 1; min-width: 0; font: inherit; padding: var(--mf-space-2, 8px); border: 1px solid var(--mf-border); border-radius: 8px; background: var(--mf-surface); color: var(--mf-text); }

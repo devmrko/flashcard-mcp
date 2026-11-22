@@ -33,7 +33,7 @@ claude mcp add --transport http flashcard http://127.0.0.1:8810/m/local/mcp
 
 ## 인증
 
-웹과 MCP는 각각 두 가지 중 고른다. 전체 안내: [docs/guides/auth.md](docs/guides/auth.md)
+웹과 MCP는 각각 두 가지 중 고른다. 전체 안내: [docs/guides/auth.md](docs/guides/auth.md). Google 로그인 + MCP 주소 발급의 재사용 명세: [docs/spec/google-signin-mcp-connect.md](docs/spec/google-signin-mcp-connect.md)
 
 | | 기본 | Google |
 |---|---|---|
@@ -139,6 +139,7 @@ src/flashcard/
 tests/            pytest (SQLite)
 docs/design/      설계서
 docs/guides/      인증 안내(auth.md), Google 로그인 설정(google-sso.md)
+docs/spec/        Google 로그인 + MCP 주소 발급 명세(다른 앱에 재사용)
 deploy/
   examples/       Caddyfile, nginx.conf, pm2.config.cjs
   oracle/         ADB 사용자 생성 SQL

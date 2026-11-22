@@ -541,7 +541,7 @@ wheels = [
 [[package]]
 name = "mobile-foundation"
 version = "0.1.0"
-source = { git = "https://github.com/devmrko/mobile-foundation.git?branch=main#f9112e5d9354a00e4270e2cfdd7ac33c8b8121f9" }
+source = { git = "https://github.com/devmrko/mobile-foundation.git?branch=main#5ba6615bc79a7532991ef49e79e640483a5f1bd9" }
 dependencies = [
     { name = "jinja2" },
 ]

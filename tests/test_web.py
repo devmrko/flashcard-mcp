@@ -232,3 +232,4 @@ def test_connect_page_hides_token_urls(client):
     assert TOKEN not in page.text and CODEX_TOKEN not in page.text
     assert client.get("/connect").status_code == 401
     assert 'href="/connect"' in client.get("/", headers=AUTH).text
+    assert client.get("/connect/claude-ai", headers=AUTH).status_code == 404  # no OAuth URL to show

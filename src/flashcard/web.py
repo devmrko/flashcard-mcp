@@ -32,6 +32,41 @@ TABS = [
     {"key": "browse", "label": "찾아보기", "href": "/browse", "icon": "search"},
     {"key": "stats", "label": "통계", "href": "/stats", "icon": "chart"},
 ]
+# AI apps listed on /connect; each opens /connect/<key> with its own steps. "{url}" is the MCP URL.
+CONNECT_APPS = [
+    {
+        "key": "claude-ai",
+        "name": "claude.ai",
+        "meta": "웹·데스크톱·모바일 앱",
+        "steps": [
+            "설정 → 커넥터 → 사용자 지정 커넥터 추가",
+            "이름에 flashcard, URL에 아래 주소를 넣고 추가",
+            "연결을 누르고 Google 계정으로 로그인",
+        ],
+    },
+    {
+        "key": "claude-code",
+        "name": "Claude Code",
+        "meta": "터미널",
+        "steps": [
+            "아래 명령을 터미널에서 실행",
+            "Claude Code 세션에서 /mcp → flashcard → 인증",
+            "열린 브라우저에서 Google 계정으로 로그인",
+        ],
+        "command": "claude mcp add --transport http flashcard {url}",
+    },
+    {
+        "key": "other",
+        "name": "ChatGPT 등 다른 앱",
+        "meta": "원격 MCP 서버를 지원하는 앱",
+        "steps": [
+            "앱의 원격 MCP 서버(커넥터) 추가 화면을 연다",
+            "아래 주소를 넣고 인증 방식은 OAuth를 고른다",
+            "Google 계정으로 로그인",
+        ],
+        "note": "OAuth를 지원하지 않는 앱은 서버 관리자에게 토큰 주소를 받습니다.",
+    },
+]
 RATING_LABELS = {"again": "다시", "hard": "어려움", "good": "알맞음", "easy": "쉬움"}
 RATING_TONES = {"again": "bad", "hard": "warn", "good": "ok", "easy": "info"}
 
@@ -185,21 +220,32 @@ def create_app(settings: Settings, engine: Engine | None = None) -> FastAPI:
             signed_in=request.session.get("email") if google else None,
         )
 
+    def mcp_url() -> str:
+        if oauth is not None:
+            return f"{settings.base_url}/mcp"
+        if settings.local_only and not settings.client_tokens:
+            return f"{settings.base_url}/m/local/mcp"
+        return ""  # token URLs are secrets: never rendered
+
     @web.get("/connect", response_class=HTMLResponse)
     def connect_page(request: Request) -> HTMLResponse:
-        if oauth is not None:
-            url = f"{settings.base_url}/mcp"
-        elif settings.local_only and not settings.client_tokens:
-            url = f"{settings.base_url}/m/local/mcp"
-        else:
-            url = ""  # token URLs are secrets: never rendered
         return render(
             request,
             "connect.html",
-            url=url,
+            url=mcp_url(),
             google=oauth is not None,
+            apps=CONNECT_APPS,
             labels=sorted(settings.client_tokens.values()),
         )
+
+    @web.get("/connect/{key}", response_class=HTMLResponse)
+    def connect_app_page(request: Request, key: str) -> HTMLResponse:
+        found = next((a for a in CONNECT_APPS if a["key"] == key), None)
+        url = mcp_url()
+        if found is None or not url:
+            raise HTTPException(404)
+        command = found.get("command", "").format(url=url)
+        return render(request, "connect_app.html", app_info=found, url=url, command=command)
 
     @web.get("/d/{deck}", response_class=HTMLResponse)
     def deck_page(request: Request, deck: str) -> HTMLResponse:

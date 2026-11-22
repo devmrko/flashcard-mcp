@@ -1,0 +1,13 @@
+{% extends "layout.html" %}
+{% block title %}{{ app_info.name }} 연결 · 플래시카드{% endblock %}
+{% block topbar %}{% call mf.topbar(app_info.name ~ " 연결", back_url="/connect") %}{% endcall %}{% endblock %}
+{% block content %}
+<div class="mf-stack">
+  {% call mf.card() %}{{ mf.steps(app_info.steps, compact=True) }}{% endcall %}
+  {% if command %}
+  {{ mf.copy_field("mcp-command", command, "명령") }}
+  {% endif %}
+  {{ mf.copy_field("mcp-url", url, "MCP 주소") }}
+  {% if app_info.note %}<p class="mf-hint">{{ app_info.note }}</p>{% endif %}
+</div>
+{% endblock %}

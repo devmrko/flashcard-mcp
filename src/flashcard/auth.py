@@ -1,7 +1,7 @@
-"""Google sign-in (OpenID Connect authorization-code flow) for the web UI.
+"""Google sign-in (OpenID Connect authorization-code flow).
 
-Only the web UI uses this. MCP keeps its per-client path tokens because remote MCP connectors
-cannot do a browser sign-in against this app.
+Used by the web UI and, through oauth.GoogleOAuthProvider, by MCP clients when MCP_AUTH=google.
+Spec: docs/spec/google-signin-mcp-connect.md.
 """
 
 import base64
